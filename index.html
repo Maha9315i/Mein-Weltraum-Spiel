@@ -2,14 +2,14 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Deep Space Rebellion - Progress</title>
+    <title>Deep Space Rebellion</title>
     <style>
-        body { background: #020205; color: #fff; font-family: 'Courier New', Courier, monospace; text-align: center; margin: 0; overflow: hidden; }
+        body { background: #020205; color: #fff; font-family: 'Courier New', monospace; text-align: center; margin: 0; overflow: hidden; }
         .screen { display: none; padding-top: 50px; height: 100vh; }
         .active { display: block; }
         #game-container { position: relative; width: 600px; margin: 20px auto; }
         #game-canvas { border: 2px solid #00d4ff; background: #000; display: block; box-shadow: 0 0 20px #00d4ff; }
-        #ui { position: absolute; top: 10px; left: 10px; text-align: left; pointer-events: none; color: #00d4ff; }
+        #ui { position: absolute; top: 10px; left: 10px; text-align: left; pointer-events: none; color: #00d4ff; font-weight: bold; }
         button { background: transparent; border: 2px solid #00d4ff; color: #00d4ff; padding: 15px 30px; cursor: pointer; border-radius: 50px; font-size: 18px; }
         button:hover { background: #00d4ff; color: #000; }
         .fraktion { border: 1px solid #00d4ff; padding: 20px; cursor: pointer; margin: 10px; background: rgba(0,212,255,0.1); display: inline-block; width: 200px; }
@@ -41,8 +41,7 @@
             </div>
             <canvas id="game-canvas" width="600" height="400"></canvas>
         </div>
-        <p>Sammle die gelben Energie-Zellen!</p>
-        <button onclick="location.reload()">Reset</button>
+        <p>Sammle Energie-Zellen | WASD / Pfeile</p>
     </div>
 
     <script>
@@ -53,6 +52,8 @@
         let items = [];
         let keys = {};
         let gameRunning = false;
+        let levelUpMessage = "";
+        let levelUpTimer = 0;
 
         function showScreen(screenId, choice) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -63,21 +64,22 @@
         function startGame() {
             showScreen('game-screen');
             gameRunning = true;
-            spawnItem();
+            if(items.length === 0) spawnItem();
             gameLoop();
         }
 
         function spawnItem() {
             items.push({
-                x: Math.random() * (canvas.width - 15),
-                y: Math.random() * (canvas.height - 15),
-                size: 10,
-                color: "#ffea00"
+                x: Math.random() * (canvas.width - 20) + 10,
+                y: Math.random() * (canvas.height - 20) + 10,
+                size: 10
             });
         }
 
         window.addEventListener("keydown", e => keys[e.key] = true);
         window.addEventListener("keyup", e => keys[e.key] = false);
+        // Fix gegen das "Weglaufen": Wenn das Fenster den Fokus verliert, Tasten resetten
+        window.addEventListener("blur", () => { keys = {}; });
 
         function update() {
             if (keys["ArrowUp"] || keys["w"]) player.y -= player.speed;
@@ -85,7 +87,11 @@
             if (keys["ArrowLeft"] || keys["a"]) player.x -= player.speed;
             if (keys["ArrowRight"] || keys["d"]) player.x += player.speed;
 
-            // Kollision mit Items
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas.width - player.size) player.x = canvas.width - player.size;
+            if (player.y < 0) player.y = 0;
+            if (player.y > canvas.height - player.size) player.y = canvas.height - player.size;
+
             items.forEach((item, index) => {
                 if (player.x < item.x + item.size && player.x + player.size > item.x &&
                     player.y < item.y + item.size && player.y + player.size > item.y) {
@@ -94,6 +100,8 @@
                     spawnItem();
                 }
             });
+
+            if(levelUpTimer > 0) levelUpTimer--;
         }
 
         function gainXP(amount) {
@@ -101,9 +109,10 @@
             if (player.xp >= player.nextLvl) {
                 player.lvl++;
                 player.xp = 0;
-                player.nextLvl += 50; // Nächstes Level wird schwerer
-                player.speed += 0.5; // Belohnung: Schneller werden
-                alert("LEVEL UP! Du bist jetzt Level " + player.lvl);
+                player.nextLvl += 50;
+                player.speed += 0.5;
+                levelUpMessage = "LEVEL UP! JETZT LEVEL " + player.lvl;
+                levelUpTimer = 100; // Nachricht für ca. 2 Sek anzeigen
             }
             document.getElementById("xp-display").innerText = player.xp;
             document.getElementById("lvl-display").innerText = player.lvl;
@@ -113,17 +122,24 @@
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Spieler
+            // Spieler (Schiff)
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
             
-            // Items
+            // Item (Energie)
             items.forEach(item => {
-                ctx.fillStyle = item.color;
+                ctx.fillStyle = "#ffea00";
                 ctx.beginPath();
                 ctx.arc(item.x, item.y, item.size/2, 0, Math.PI * 2);
                 ctx.fill();
             });
+
+            // Level Up Nachricht im Canvas zeichnen
+            if(levelUpTimer > 0) {
+                ctx.fillStyle = "#00d4ff";
+                ctx.font = "bold 30px Courier New";
+                ctx.fillText(levelUpMessage, 120, 200);
+            }
         }
 
         function gameLoop() {
