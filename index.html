@@ -103,7 +103,8 @@
                 player.xp = 0;
                 player.nextLvl += 50; // Nächstes Level wird schwerer
                 player.speed += 0.5; // Belohnung: Schneller werden
-                alert("LEVEL UP! Du bist jetzt Level " + player.lvl);
+                levelUpMessage = "LEVEL UP! JETZT LEVEL " + player.lvl;
+levelUpTimer = 100; // Nachricht für ca. 2 Sek anzeigen
             }
             document.getElementById("xp-display").innerText = player.xp + " / " + player.nextLvl;
             document.getElementById("lvl-display").innerText = player.lvl;
