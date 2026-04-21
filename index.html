@@ -2,19 +2,35 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Mein Weltraum-Spiel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mein Weltraum-Spiel - Rebellion</title>
     <style>
-        body { margin: 0; background: #111; color: white; font-family: Arial, sans-serif; overflow: hidden; }
-        canvas { display: block; background: #000; margin: 0 auto; border: 2px solid #444; }
-        #ui { position: absolute; top: 10px; left: 10px; pointer-events: none; }
-        .stat { font-size: 20px; margin: 5px 0; text-shadow: 2px 2px 4px #000; }
+        body { margin: 0; background: #000; color: #00ffcc; font-family: 'Courier New', monospace; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        canvas { display: none; } /* Versteckt das Spiel am Anfang */
+        
+        #start-menu { text-align: center; background: rgba(0, 20, 20, 0.9); padding: 40px; border: 3px solid #00ffcc; border-radius: 15px; }
+        h1 { margin-top: 0; color: #fff; text-shadow: 0 0 10px #00ffcc; }
+        .btn-container { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
+        button { padding: 15px 25px; font-size: 18px; font-family: inherit; cursor: pointer; border: 2px solid #00ffcc; background: transparent; color: #00ffcc; transition: 0.3s; }
+        button:hover { background: #00ffcc; color: #000; }
+
+        #ui { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.7); padding: 15px; border: 2px solid #00ffcc; border-radius: 8px; pointer-events: none; display: none; }
     </style>
 </head>
 <body>
 
+    <div id="start-menu">
+        <h1>WÄHLE DEINE FRAKTION</h1>
+        <div class="btn-container">
+            <button onclick="startGame('Rebellen', 'cyan')">REBELLEN (Cyan)</button>
+            <button onclick="startGame('Imperium', 'red')">IMPERIUM (Rot)</button>
+        </div>
+    </div>
+
     <div id="ui">
-        <div class="stat">LEVEL: <span id="lvl-display">1</span></div>
-        <div class="stat">XP: <span id="xp-display">0 / 100</span></div>
+        <div style="font-weight: bold; color: yellow; margin-bottom: 5px;" id="faction-name">FRAKTION: -</div>
+        <div>LEVEL: <span id="lvl-display">1</span></div>
+        <div>XP: <span id="xp-display">0 / 100</span></div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -22,95 +38,88 @@
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
+        let gameRunning = false;
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        // Spieler-Objekt
         let player = {
-            x: canvas.width / 2,
-            y: canvas.height / 2,
-            size: 30,
-            color: "cyan",
-            speed: 5,
-            lvl: 1,
-            xp: 0,
-            nextLvl: 100
+            x: 0, y: 0, size: 30, color: "white", speed: 5,
+            lvl: 1, xp: 0, nextLvl: 100, faction: ""
         };
 
         let items = [];
         let levelUpMessage = "";
         let levelUpTimer = 0;
+        let keys = {};
 
-        // Funktion zum Erstellen von Items
+        // Startfunktion
+        function startGame(faction, color) {
+            document.getElementById("start-menu").style.display = "none";
+            document.getElementById("ui").style.display = "block";
+            canvas.style.display = "block";
+            
+            player.faction = faction;
+            player.color = color;
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            document.getElementById("faction-name").innerText = "FRAKTION: " + faction;
+            
+            gameRunning = true;
+            for(let i = 0; i < 5; i++) spawnItem();
+            gameLoop();
+        }
+
         function spawnItem() {
             items.push({
-                x: Math.random() * (canvas.width - 20),
-                y: Math.random() * (canvas.height - 20),
-                size: 15,
-                color: "yellow"
+                x: Math.random() * (window.innerWidth - 20),
+                y: Math.random() * (window.innerHeight - 20),
+                size: 15, color: "yellow"
             });
         }
 
-        // XP gewinnen und Level-Up prüfen
         function gainXP(amount) {
             player.xp += amount;
-            
             if (player.xp >= player.nextLvl) {
                 player.lvl++;
-                player.xp = 0; // Hier kannst du auch player.xp -= player.nextLvl nutzen
+                player.xp = 0;
                 player.nextLvl += 50;
                 player.speed += 0.5;
-                
                 levelUpMessage = "LEVEL UP! JETZT LEVEL " + player.lvl;
-                levelUpTimer = 100; // Nachricht für ca. 2 Sek anzeigen
+                levelUpTimer = 100;
             }
-
-            // UI-Update
             document.getElementById("xp-display").innerText = player.xp + " / " + player.nextLvl;
             document.getElementById("lvl-display").innerText = player.lvl;
         }
 
-        // Steuerung (einfach)
-        let keys = {};
         window.addEventListener("keydown", e => keys[e.code] = true);
         window.addEventListener("keyup", e => keys[e.code] = false);
 
         function update() {
-            if (keys["ArrowUp"]) player.y -= player.speed;
-            if (keys["ArrowDown"]) player.y += player.speed;
-            if (keys["ArrowLeft"]) player.x -= player.speed;
-            if (keys["ArrowRight"]) player.x += player.speed;
+            if (!gameRunning) return;
+            if (keys["ArrowUp"] && player.y > 0) player.y -= player.speed;
+            if (keys["ArrowDown"] && player.y < canvas.height - player.size) player.y += player.speed;
+            if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
+            if (keys["ArrowRight"] && player.x < canvas.width - player.size) player.x += player.speed;
 
-            // Kollision mit Items
-            items.forEach((item, index) => {
-                if (player.x < item.x + item.size && player.x + player.size > item.x &&
-                    player.y < item.y + item.size && player.y + player.size > item.y) {
-                    items.splice(index, 1);
+            for (let i = items.length - 1; i >= 0; i--) {
+                let it = items[i];
+                if (player.x < it.x + it.size && player.x + player.size > it.x &&
+                    player.y < it.y + it.size && player.y + player.size > it.y) {
+                    items.splice(i, 1);
                     gainXP(25);
                     spawnItem();
                 }
-            });
-
-            // Timer runterzählen
+            }
             if (levelUpTimer > 0) levelUpTimer--;
         }
 
         function draw() {
+            if (!gameRunning) return;
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Items zeichnen
-            items.forEach(item => {
-                ctx.fillStyle = item.color;
-                ctx.fillRect(item.x, item.y, item.size, item.size);
-            });
-
-            // Spieler zeichnen
+            items.forEach(it => { ctx.fillStyle = it.color; ctx.fillRect(it.x, it.y, it.size, it.size); });
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
 
-            // Level-Up Nachricht zeichnen
             if (levelUpTimer > 0) {
                 ctx.fillStyle = "yellow";
                 ctx.font = "bold 40px Arial";
@@ -122,13 +131,15 @@
         function gameLoop() {
             update();
             draw();
-            requestAnimationFrame(gameLoop);
+            if (gameRunning) requestAnimationFrame(gameLoop);
         }
 
-        // Spiel starten
-        spawnItem();
-        spawnItem();
-        gameLoop();
+        window.addEventListener("resize", () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
     </script>
 </body>
 </html>
