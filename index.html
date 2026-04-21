@@ -8,10 +8,10 @@
         .screen { display: none; padding-top: 50px; height: 100vh; }
         .active { display: block; }
         #game-canvas { border: 2px solid #00d4ff; background: #000; display: block; margin: 20px auto; box-shadow: 0 0 20px #00d4ff; }
-        button { background: transparent; border: 2px solid #00d4ff; color: #00d4ff; padding: 15px 30px; cursor: pointer; border-radius: 50px; }
+        button { background: transparent; border: 2px solid #00d4ff; color: #00d4ff; padding: 15px 30px; cursor: pointer; border-radius: 50px; font-size: 18px; }
         button:hover { background: #00d4ff; color: #000; }
         .container { display: flex; justify-content: center; gap: 20px; }
-        .fraktion { border: 1px solid #00d4ff; padding: 20px; cursor: pointer; border-radius: 10px; }
+        .fraktion { border: 1px solid #00d4ff; padding: 20px; cursor: pointer; border-radius: 10px; background: rgba(0,212,255,0.1); }
     </style>
 </head>
 <body>
@@ -31,12 +31,14 @@
 
     <div id="menu-screen" class="screen">
         <h1 id="welcome-msg">Kommandozentrale</h1>
-        <button onclick="startGame()">MISSION STARTEN</button>
+        <br>
+        <button onclick="startGame()">ÜBERTRAGUNG STARTEN</button>
     </div>
 
     <div id="game-screen" class="screen">
         <canvas id="game-canvas" width="600" height="400"></canvas>
         <p>Steuerung: Pfeiltasten oder WASD</p>
+        <button onclick="location.reload()">Spiel Neustarten</button>
     </div>
 
     <script>
@@ -44,6 +46,7 @@
         let ctx = canvas.getContext("2d");
         let player = { x: 300, y: 200, size: 20, color: "#00d4ff", speed: 5 };
         let keys = {};
+        let gameRunning = false;
 
         function showScreen(screenId, choice) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -53,12 +56,13 @@
 
         function startGame() {
             showScreen('game-screen');
+            gameRunning = true;
             gameLoop();
         }
 
         // Steuerung registrieren
-        window.addEventListener("keydown", e => keys[e.key] = true);
-        window.addEventListener("keyup", e => keys[e.key] = false);
+        window.addEventListener("keydown", e => { keys[e.key] = true; });
+        window.addEventListener("keyup", e => { keys[e.key] = false; });
 
         function update() {
             if (keys["ArrowUp"] || keys["w"]) player.y -= player.speed;
@@ -66,7 +70,7 @@
             if (keys["ArrowLeft"] || keys["a"]) player.x -= player.speed;
             if (keys["ArrowRight"] || keys["d"]) player.x += player.speed;
 
-            // Spielfeldbegrenzung
+            // Grenzen checken
             if (player.x < 0) player.x = 0;
             if (player.x > canvas.width - player.size) player.x = canvas.width - player.size;
             if (player.y < 0) player.y = 0;
@@ -74,15 +78,18 @@
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // Feld leeren
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height); // Hintergrund löschen
+            
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size); // Spieler zeichnen
         }
 
         function gameLoop() {
+            if(!gameRunning) return;
             update();
             draw();
-            requestAnimationFrame(gameLoop); // Sorgt für flüssige Bewegung
+            requestAnimationFrame(gameLoop);
         }
     </script>
 </body>
