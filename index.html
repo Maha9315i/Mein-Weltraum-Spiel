@@ -4,97 +4,85 @@
     <meta charset="UTF-8">
     <title>Deep Space Rebellion</title>
     <style>
-        body { 
-            background: #020205; 
-            color: #ffffff; 
-            font-family: 'Segoe UI', sans-serif; 
-            text-align: center; 
-            margin: 0;
-            overflow: hidden; /* Verhindert Scrollen */
-        }
-        /* Sternen-Hintergrund Effekt */
-        .stars {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(white, rgba(255,255,255,0) 2px) transparent;
-            background-size: 100px 100px;
-            z-index: -1;
-        }
-        .screen { display: none; padding-top: 100px; height: 100vh; }
+        body { background: #020205; color: #fff; font-family: sans-serif; text-align: center; margin: 0; overflow: hidden; }
+        .screen { display: none; padding-top: 50px; height: 100vh; }
         .active { display: block; }
-        
-        h1 { font-size: 3rem; color: #00d4ff; text-shadow: 0 0 20px #00d4ff; }
-        
-        .container { display: flex; justify-content: center; gap: 30px; margin-top: 50px; }
-        
-        .fraktion { 
-            border: 2px solid #00d4ff; 
-            padding: 30px; 
-            width: 280px; 
-            border-radius: 20px; 
-            background: rgba(0, 212, 255, 0.1); 
-            transition: 0.4s;
-            cursor: pointer;
-        }
-        .fraktion:hover { background: rgba(0, 212, 255, 0.3); transform: scale(1.05); }
-        .icon { font-size: 60px; margin-bottom: 15px; }
-
-        button { 
-            background: transparent; 
-            border: 2px solid #00d4ff; 
-            color: #00d4ff; 
-            padding: 15px 40px; 
-            font-size: 20px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            border-radius: 50px;
-            transition: 0.3s;
-        }
-        button:hover { background: #00d4ff; color: #000; box-shadow: 0 0 20px #00d4ff; }
+        #game-canvas { border: 2px solid #00d4ff; background: #000; display: block; margin: 20px auto; box-shadow: 0 0 20px #00d4ff; }
+        button { background: transparent; border: 2px solid #00d4ff; color: #00d4ff; padding: 15px 30px; cursor: pointer; border-radius: 50px; }
+        button:hover { background: #00d4ff; color: #000; }
+        .container { display: flex; justify-content: center; gap: 20px; }
+        .fraktion { border: 1px solid #00d4ff; padding: 20px; cursor: pointer; border-radius: 10px; }
     </style>
 </head>
 <body>
-    <div class="stars"></div>
 
     <div id="start-screen" class="screen active">
         <h1>PROJECT: DARK SPACE</h1>
-        <p>Systeme online. Bereit zum Andocken.</p>
-        <br>
         <button onclick="showScreen('faction-screen')">INITIALISIEREN</button>
     </div>
 
     <div id="faction-screen" class="screen">
         <h2>WÄHLE DEINE SPEZIES</h2>
         <div class="container">
-            <div class="fraktion" onclick="showScreen('menu-screen', 'Mensch')">
-                <div class="icon">👨‍🚀</div>
-                <h3>MENSCHEN</h3>
-                <p>Besiedeln die Galaxie mit Mut und Technik.</p>
-            </div>
-            <div class="fraktion" onclick="showScreen('menu-screen', 'Alien')">
-                <div class="icon">👽</div>
-                <h3>ALIENS</h3>
-                <p>Uralte Wesen mit mystischer Energie.</p>
-            </div>
+            <div class="fraktion" onclick="showScreen('menu-screen', 'Mensch')"><h3>👨‍🚀 MENSCHEN</h3></div>
+            <div class="fraktion" onclick="showScreen('menu-screen', 'Alien')"><h3>👽 ALIENS</h3></div>
         </div>
     </div>
 
     <div id="menu-screen" class="screen">
         <h1 id="welcome-msg">Kommandozentrale</h1>
-        <div style="border-top: 1px solid #333; padding: 40px;">
-            <p>Fraktions-Status: <span id="status-text" style="color:#00d4ff">Bereit</span></p>
-            <button onclick="alert('Mission startet...')">ÜBERTRAGUNG STARTEN</button>
-        </div>
+        <button onclick="startGame()">MISSION STARTEN</button>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <canvas id="game-canvas" width="600" height="400"></canvas>
+        <p>Steuerung: Pfeiltasten oder WASD</p>
     </div>
 
     <script>
+        let canvas = document.getElementById("game-canvas");
+        let ctx = canvas.getContext("2d");
+        let player = { x: 300, y: 200, size: 20, color: "#00d4ff", speed: 5 };
+        let keys = {};
+
         function showScreen(screenId, choice) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
-            if(choice) {
-                document.getElementById('welcome-msg').innerText = "Willkommen, " + choice;
-                document.getElementById('status-text').innerText = choice + "-Flotte einsatzbereit";
-            }
+            if(choice) document.getElementById('welcome-msg').innerText = "Willkommen, " + choice;
+        }
+
+        function startGame() {
+            showScreen('game-screen');
+            gameLoop();
+        }
+
+        // Steuerung registrieren
+        window.addEventListener("keydown", e => keys[e.key] = true);
+        window.addEventListener("keyup", e => keys[e.key] = false);
+
+        function update() {
+            if (keys["ArrowUp"] || keys["w"]) player.y -= player.speed;
+            if (keys["ArrowDown"] || keys["s"]) player.y += player.speed;
+            if (keys["ArrowLeft"] || keys["a"]) player.x -= player.speed;
+            if (keys["ArrowRight"] || keys["d"]) player.x += player.speed;
+
+            // Spielfeldbegrenzung
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas.width - player.size) player.x = canvas.width - player.size;
+            if (player.y < 0) player.y = 0;
+            if (player.y > canvas.height - player.size) player.y = canvas.height - player.size;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Feld leeren
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.size, player.size); // Spieler zeichnen
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop); // Sorgt für flüssige Bewegung
         }
     </script>
 </body>
