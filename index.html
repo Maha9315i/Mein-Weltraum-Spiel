@@ -104,20 +104,23 @@
             if(levelUpTimer > 0) levelUpTimer--;
         }
 
-        function gainXP(amount) {
-            player.xp += amount;
-            if (player.xp >= player.nextLvl) {
-                player.lvl++;
-                player.xp = 0;
-                player.nextLvl += 50;
-                player.speed += 0.5;
-                levelUpMessage = "LEVEL UP! JETZT LEVEL " + player.lvl;
-                levelUpTimer = 100; // Nachricht für ca. 2 Sek anzeigen
-            }
-            document.getElementById("xp-display").innerText = player.xp;
-            document.getElementById("lvl-display").innerText = player.lvl;
-        }
+     function gainXP(amount) {
+    player.xp += amount;
+    if (player.xp >= player.nextLvl) {
+        player.xp -= player.nextLvl;
+        player.lvl++;
+        // Hier erhöhen wir die Schwierigkeit für das nächste Level
+        player.nextLvl += 50; 
+        alert("Level Up! Du bist jetzt Level " + player.lvl);
+    }
+    updateUI();
+}
 
+function updateUI() {
+    document.getElementById("lvl-display").innerText = player.lvl;
+    // Hier ist der Trick: Wir zeigen player.nextLvl statt fest "100"
+    document.getElementById("xp-display").innerText = player.xp + " / " + player.nextLvl;
+}
         function draw() {
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
