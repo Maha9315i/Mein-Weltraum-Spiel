@@ -2,27 +2,72 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Space Rebellion - Combat Alpha</title>
+    <title>Space Rebellion - Evolution</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        body { margin: 0; background: #000; color: #00ffcc; font-family: 'Courier New', monospace; overflow: hidden; }
         canvas { display: block; }
-        #ui {
-            position: absolute; top: 10px; left: 10px; color: #00ffcc;
-            background: rgba(0, 20, 20, 0.7); padding: 10px; border: 1px solid #00ffcc;
-            pointer-events: none; z-index: 10;
-        }
-        #minimap {
-            position: absolute; bottom: 20px; right: 20px;
-            width: 150px; height: 150px; background: #000; border: 2px solid #00ffcc;
-            z-index: 10;
-        }
+        
+        /* --- MENÜ STYLES --- */
+        #game-overlay { position: absolute; inset: 0; background: rgba(0,10,10,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        .menu-container { width: 80%; max-width: 800px; border: 2px solid #00ffcc; padding: 20px; background: #001a1a; box-shadow: 0 0 20px #00ffcc; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #00ffcc; padding-bottom: 10px; }
+        .tab-btn { background: none; border: 1px solid #00ffcc; color: #00ffcc; padding: 10px; cursor: pointer; }
+        .tab-btn:hover, .tab-btn.active { background: #00ffcc; color: #000; }
+        .content-section { display: none; height: 300px; overflow-y: auto; }
+        .active-section { display: block; }
+        
+        /* Shop & Inventar */
+        .item-card { border: 1px solid #00ffcc; padding: 10px; margin: 5px; display: flex; justify-content: space-between; align-items: center; }
+        button.buy-btn { background: #ffd700; color: #000; border: none; padding: 5px 10px; cursor: pointer; font-weight: bold; }
+        
+        /* UI im Spiel */
+        #game-ui { position: absolute; top: 10px; left: 10px; pointer-events: none; display: none; }
+        .stat-box { background: rgba(0,20,20,0.8); padding: 10px; border: 1px solid #00ffcc; margin-bottom: 5px; }
+        #minimap { position: absolute; bottom: 20px; right: 20px; width: 150px; height: 150px; border: 2px solid #00ffcc; display: none; }
     </style>
 </head>
 <body>
 
-    <div id="ui">
-        POS: <span id="pos-display">0 | 0</span><br>
-        CREDITS: <span id="credit-display">0</span>
+    <div id="game-overlay">
+        <h1 id="menu-title">SPACE REBELLION</h1>
+        <div id="faction-choice">
+            <p>WÄHLE DEINE FRAKTION:</p>
+            <button class="tab-btn" onclick="selectFaction('MENSCH', 'cyan')">MENSCHHEIT (Speed +)</button>
+            <button class="tab-btn" onclick="selectFaction('ALIEN', '#ff00ff')">SYNDIKAT (Schild +)</button>
+        </div>
+
+        <div id="main-menu" style="display:none;" class="menu-container">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="showTab('hangar')">HANGAR</button>
+                <button class="tab-btn" onclick="showTab('shop')">SHOP</button>
+                <button class="tab-btn" onclick="showTab('pilot')">PILOT SHEET</button>
+                <button class="tab-btn" style="margin-left:auto; border-color: #ffd700;" onclick="startGame()">INS ALL STARTEN</button>
+            </div>
+
+            <div id="hangar" class="content-section active-section">
+                <h3>DEIN SCHIFF: <span id="ship-name-display">Phoenix</span></h3>
+                <div id="inventory-list"></div>
+            </div>
+
+            <div id="shop" class="content-section">
+                <h3>AUSRÜSTUNG KAUFEN (Credits: <span class="credit-val">0</span>)</h3>
+                <div id="shop-list"></div>
+            </div>
+
+            <div id="pilot" class="content-section">
+                <h3>PILOTEN-DATEN</h3>
+                <p>Level: <span id="p-lvl">1</span></p>
+                <p>XP: <span id="p-xp">0</span> / <span id="p-next">1000</span></p>
+                <p>Fraktion: <span id="p-faction">-</span></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-ui">
+        <div class="stat-box">
+            HP: <span id="ui-hp">100</span> | SHD: <span id="ui-shd">100</span><br>
+            XP: <span id="ui-xp">0</span> | CREDITS: <span class="credit-val">0</span>
+        </div>
     </div>
     
     <canvas id="minimap"></canvas>
@@ -34,221 +79,188 @@
         const mCanvas = document.getElementById("minimap");
         const mCtx = mCanvas.getContext("2d");
 
+        // SPIELER DATEN (Persistent)
+        let gameState = "MENU";
+        let player = {
+            faction: "", color: "white", credits: 500, xp: 0, lvl: 1, nextLvl: 1000,
+            worldX: 2500, worldY: 2500, angle: 0, speed: 0,
+            maxHp: 100, hp: 100, maxShield: 100, shield: 100,
+            laserPower: 5, enginePower: 5,
+            inventory: []
+        };
+
+        const shopItems = [
+            { id: 'l1', name: 'LF-1 Laser', price: 200, power: 10, type: 'laser' },
+            { id: 's1', name: 'Schild-Gen A', price: 300, power: 50, type: 'shield' },
+            { id: 'e1', name: 'Antrieb V2', price: 400, power: 2, type: 'engine' }
+        ];
+
+        // --- MENÜ LOGIK ---
+        function selectFaction(name, color) {
+            player.faction = name;
+            player.color = color;
+            document.getElementById("faction-choice").style.display = "none";
+            document.getElementById("main-menu").style.display = "block";
+            document.getElementById("p-faction").innerText = name;
+            updateUI();
+            renderShop();
+        }
+
+        function showTab(id) {
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active-section'));
+            document.getElementById(id).classList.add('active-section');
+        }
+
+        function renderShop() {
+            const list = document.getElementById("shop-list");
+            list.innerHTML = "";
+            shopItems.forEach(item => {
+                list.innerHTML += `
+                    <div class="item-card">
+                        <span>${item.name} (${item.price} C)</span>
+                        <button class="buy-btn" onclick="buyItem('${item.id}')">KAUFEN</button>
+                    </div>`;
+            });
+        }
+
+        function buyItem(id) {
+            const item = shopItems.find(i => i.id === id);
+            if (player.credits >= item.price) {
+                player.credits -= item.price;
+                player.inventory.push(item);
+                if(item.type === 'laser') player.laserPower += item.power;
+                if(item.type === 'shield') player.maxShield += item.power;
+                if(item.type === 'engine') player.enginePower += item.power;
+                updateUI();
+                renderInventory();
+            } else { alert("Zu wenig Credits!"); }
+        }
+
+        function renderInventory() {
+            const list = document.getElementById("inventory-list");
+            list.innerHTML = player.inventory.map(i => `<div class="item-card"><span>[INSTALLIERT] ${i.name}</span></div>`).join('');
+        }
+
+        function updateUI() {
+            document.querySelectorAll(".credit-val").forEach(el => el.innerText = player.credits);
+            document.getElementById("p-lvl").innerText = player.lvl;
+            document.getElementById("p-xp").innerText = player.xp;
+            document.getElementById("ui-hp").innerText = Math.floor(player.hp);
+            document.getElementById("ui-shd").innerText = Math.floor(player.shield);
+        }
+
+        function startGame() {
+            document.getElementById("game-overlay").style.display = "none";
+            document.getElementById("game-ui").style.display = "block";
+            document.getElementById("minimap").style.display = "block";
+            gameState = "GAME";
+            player.hp = player.maxHp;
+            player.shield = player.maxShield;
+            gameLoop();
+        }
+
+        // --- GAME LOGIK (Basis aus V3, erweitert) ---
         const worldSize = 5000;
         let mouse = { x: 0, y: 0 };
         let keys = {};
         let selectedTarget = null;
-        let credits = 0;
-
-        // 1. SPIELER SETUP
-        const player = {
-            worldX: 2500, worldY: 2500,
-            size: 25, angle: 0, speed: 0, maxSpeed: 5,
-            hp: 100, maxHp: 100, shield: 100, maxShield: 100,
-            color: "#00f0ff"
-        };
-
-        // Listen für Objekte
-        let aliens = [
-            { id: 1, worldX: 2800, worldY: 2300, size: 40, hp: 100, maxHp: 100, color: "#ff00ff" },
-            { id: 2, worldX: 1500, worldY: 3500, size: 40, hp: 100, maxHp: 100, color: "#ff00ff" },
-            { id: 3, worldX: 4000, worldY: 1000, size: 40, hp: 100, maxHp: 100, color: "#ff00ff" }
-        ];
+        let aliens = [{ x: 2800, y: 2300, hp: 100, max: 100 }, { x: 1500, y: 3500, hp: 100, max: 100 }];
         let projectiles = [];
         let resources = [];
 
-        // Hintergrund Setup (Sterne & Nebel)
-        const starLayers = [{c:300, s:0.05, sz:1}, {c:150, s:0.15, sz:1.2}, {c:60, s:0.4, sz:2}];
-        const backgroundStars = starLayers.map(l => Array.from({length:l.c}, () => ({x:Math.random()*worldSize, y:Math.random()*worldSize})));
-        
-        const nebulae = Array.from({ length: 5 }, () => ({
-            x: Math.random() * worldSize, y: Math.random() * worldSize,
-            size: 600, color: "rgba(0, 100, 255, 0.1)"
-        }));
-
-        // Event Listener
         window.addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
         window.addEventListener("keydown", (e) => { keys[e.code] = true; });
         window.addEventListener("keyup", (e) => { keys[e.code] = false; });
-        
-        // Targeting per Klick
         window.addEventListener("mousedown", (e) => {
-            const camX = canvas.width / 2 - player.worldX;
-            const camY = canvas.height / 2 - player.worldY;
-            const clickX = e.clientX - camX;
-            const clickY = e.clientY - camY;
-
+            if(gameState !== "GAME") return;
+            const clickX = e.clientX - (canvas.width/2 - player.worldX);
+            const clickY = e.clientY - (canvas.height/2 - player.worldY);
             selectedTarget = null;
             aliens.forEach(a => {
-                const dist = Math.sqrt((clickX - a.worldX)**2 + (clickY - a.worldY)**2);
-                if (dist < a.size) selectedTarget = a;
+                const d = Math.sqrt((clickX - a.x)**2 + (clickY - a.y)**2);
+                if (d < 30) selectedTarget = a;
             });
         });
 
-        function spawnResource(x, y) {
-            resources.push({ worldX: x, worldY: y, size: 10 });
+        function gameLoop() {
+            if(gameState !== "GAME") return;
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
         }
 
         function update() {
-            // Flug-Logik
-            const dx = mouse.x - canvas.width / 2;
-            const dy = mouse.y - canvas.height / 2;
+            // Flug & Cam
+            const dx = mouse.x - canvas.width/2, dy = mouse.y - canvas.height/2;
             player.angle = Math.atan2(dy, dx);
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist > 60) player.speed = Math.min(player.speed + 0.1, player.maxSpeed);
+            if (Math.sqrt(dx*dx + dy*dy) > 60) player.speed = Math.min(player.speed + 0.1, 4 + player.enginePower/10);
             else player.speed *= 0.95;
 
             player.worldX += Math.cos(player.angle) * player.speed;
             player.worldY += Math.sin(player.angle) * player.speed;
 
-            // Weltgrenzen
-            player.worldX = Math.max(0, Math.min(worldSize, player.worldX));
-            player.worldY = Math.max(0, Math.min(worldSize, player.worldY));
-
-            // Schießen (Leertaste)
-            if (keys["Space"] && selectedTarget) {
-                // Nur alle paar Frames schießen
-                if (Math.random() < 0.15) {
-                    projectiles.push({
-                        x: player.worldX, y: player.worldY,
-                        target: selectedTarget, speed: 10
-                    });
-                }
+            // Combat
+            if (keys["Space"] && selectedTarget && Math.random() < 0.1) {
+                projectiles.push({ x: player.worldX, y: player.worldY, target: selectedTarget });
             }
 
-            // Laser-Verfolgung & Schaden
-            for (let i = projectiles.length - 1; i >= 0; i--) {
-                let p = projectiles[i];
-                let tx = p.target.worldX - p.x;
-                let ty = p.target.worldY - p.y;
-                let tDist = Math.sqrt(tx*tx + ty*ty);
-                
-                if (tDist < 15) {
-                    p.target.hp -= 5;
+            projectiles.forEach((p, i) => {
+                const tx = p.target.x - p.x, ty = p.target.y - p.y, dist = Math.sqrt(tx*tx + ty*ty);
+                if(dist < 10) {
+                    p.target.hp -= player.laserPower;
                     projectiles.splice(i, 1);
-                    if (p.target.hp <= 0) {
-                        spawnResource(p.target.worldX, p.target.worldY);
+                    if(p.target.hp <= 0) {
+                        player.xp += 200;
+                        player.credits += 150;
+                        resources.push({x: p.target.x, y: p.target.y});
                         aliens = aliens.filter(a => a !== p.target);
                         selectedTarget = null;
+                        updateUI();
                     }
-                } else {
-                    p.x += (tx / tDist) * p.speed;
-                    p.y += (ty / tDist) * p.speed;
-                }
-            }
+                } else { p.x += (tx/dist)*12; p.y += (ty/dist)*12; }
+            });
 
-            // Resource Sammeln
-            for (let i = resources.length - 1; i >= 0; i--) {
-                let r = resources[i];
-                let d = Math.sqrt((player.worldX - r.worldX)**2 + (player.worldY - r.worldY)**2);
-                if (d < 30) {
+            // Resource Pickup
+            resources.forEach((r, i) => {
+                if(Math.sqrt((player.worldX-r.x)**2 + (player.worldY-r.y)**2) < 30) {
                     resources.splice(i, 1);
-                    credits += 100;
-                    document.getElementById("credit-display").innerText = credits;
+                    player.credits += 50; updateUI();
                 }
-            }
-
-            document.getElementById("pos-display").innerText = Math.floor(player.worldX) + " | " + Math.floor(player.worldY);
-        }
-
-        function drawBars(ctx, x, y, val, max, color) {
-            const width = 50;
-            ctx.fillStyle = "rgba(0,0,0,0.5)";
-            ctx.fillRect(x - width/2, y, width, 5);
-            ctx.fillStyle = color;
-            ctx.fillRect(x - width/2, y, (Math.max(0, val)/max) * width, 5);
+            });
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const camX = canvas.width / 2 - player.worldX;
-            const camY = canvas.height / 2 - player.worldY;
+            ctx.clearRect(0,0,canvas.width, canvas.height);
+            const camX = canvas.width/2 - player.worldX, camY = canvas.height/2 - player.worldY;
+            ctx.save(); ctx.translate(camX, camY);
 
-            // --- WELT EBENE ---
-            ctx.save();
-            ctx.translate(camX, camY);
+            // Gitter & Welt
+            ctx.strokeStyle = "#003333";
+            for(let i=0; i<=worldSize; i+=500) { ctx.strokeRect(i, 0, 1, worldSize); ctx.strokeRect(0, i, worldSize, 1); }
 
-            // Sterne & Nebel
-            ctx.fillStyle = "#fff";
-            backgroundStars[1].forEach(s => ctx.fillRect(s.x, s.y, 1, 1));
-            
-            // Resources
-            resources.forEach(r => {
-                ctx.fillStyle = "#ffd700";
-                ctx.shadowBlur = 15; ctx.shadowColor = "gold";
-                ctx.fillRect(r.worldX - 5, r.worldY - 5, 10, 10);
-                ctx.shadowBlur = 0;
-            });
+            resources.forEach(r => { ctx.fillStyle = "gold"; ctx.fillRect(r.x-5, r.y-5, 10, 10); });
+            projectiles.forEach(p => { ctx.strokeStyle = "red"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x-5, p.y-5); ctx.stroke(); });
 
-            // Laser-Strahlen
-            projectiles.forEach(p => {
-                ctx.strokeStyle = "#ff3300"; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.moveTo(p.x, p.y); 
-                ctx.lineTo(p.x - Math.cos(player.angle)*10, p.y - Math.sin(player.angle)*10);
-                ctx.stroke();
-            });
-
-            // Aliens
             aliens.forEach(a => {
-                ctx.fillStyle = a.color;
-                ctx.beginPath(); ctx.arc(a.worldX, a.worldY, a.size/2, 0, Math.PI*2); ctx.fill();
-                drawBars(ctx, a.worldX, a.worldY - 35, a.hp, a.maxHp, "#ff0000");
-                
-                if (selectedTarget === a) {
-                    ctx.strokeStyle = "red"; ctx.lineWidth = 2;
-                    ctx.beginPath(); ctx.arc(a.worldX, a.worldY, a.size + 2, 0, Math.PI*2); ctx.stroke();
-                }
+                ctx.fillStyle = "#ff00ff"; ctx.beginPath(); ctx.arc(a.x, a.y, 15, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "red"; ctx.fillRect(a.x-15, a.y-25, (a.hp/a.max)*30, 4);
+                if(selectedTarget === a) { ctx.strokeStyle = "red"; ctx.strokeRect(a.x-20, a.y-20, 40, 40); }
             });
-
-            // Map-Begrenzung
-            ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 2;
-            ctx.strokeRect(0, 0, worldSize, worldSize);
-
             ctx.restore();
 
-            // --- SPIELER EBENE (Fest in Mitte) ---
-            drawPlayer();
-            drawBars(ctx, canvas.width/2, canvas.height/2 + 35, player.hp, player.maxHp, "#00ff00");
-            drawBars(ctx, canvas.width/2, canvas.height/2 + 45, player.shield, player.maxShield, "#00ccff");
-
-            drawMinimap();
-            update();
-            requestAnimationFrame(draw);
-        }
-
-        function drawPlayer() {
-            ctx.save();
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate(player.angle);
-
-            // Triebwerk
-            if (player.speed > 1) {
-                ctx.fillStyle = "rgba(0, 255, 255, " + (Math.random() * 0.5 + 0.3) + ")";
-                ctx.beginPath();
-                ctx.moveTo(-15, 0); ctx.lineTo(-25 - (player.speed * 2), 5); ctx.lineTo(-25 - (player.speed * 2), -5);
-                ctx.fill();
-            }
-
-            // Detaillierter Rumpf
-            ctx.strokeStyle = player.color; ctx.lineWidth = 2; ctx.fillStyle = "#0a0a0a";
-            ctx.beginPath();
-            ctx.moveTo(25, 0); ctx.lineTo(-12, 18); ctx.lineTo(-8, 0); ctx.lineTo(-12, -18);
-            ctx.closePath(); ctx.fill(); ctx.stroke();
-            
+            // Spieler
+            ctx.save(); ctx.translate(canvas.width/2, canvas.height/2); ctx.rotate(player.angle);
+            ctx.fillStyle = player.color; ctx.beginPath(); ctx.moveTo(20,0); ctx.lineTo(-10,12); ctx.lineTo(-10,-12); ctx.fill();
             ctx.restore();
-        }
 
-        function drawMinimap() {
-            mCtx.fillStyle = "black"; mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
-            const s = mCanvas.width / worldSize;
-            mCtx.fillStyle = "cyan"; mCtx.fillRect(player.worldX * s, player.worldY * s, 3, 3);
-            mCtx.fillStyle = "red"; aliens.forEach(a => mCtx.fillRect(a.worldX * s, a.worldY * s, 2, 2));
+            // Minimap
+            mCtx.fillStyle = "black"; mCtx.fillRect(0,0,150,150);
+            mCtx.fillStyle = "cyan"; mCtx.fillRect(player.worldX/worldSize*150, player.worldY/worldSize*150, 2, 2);
         }
 
         window.addEventListener("resize", () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
         mCanvas.width = 150; mCanvas.height = 150;
-        draw();
     </script>
 </body>
 </html>
