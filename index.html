@@ -2,42 +2,45 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Space Rebellion - Quests & Ore</title>
+    <title>Space Rebellion - Fixed Version</title>
     <style>
         body { margin: 0; background: #000; color: #00ffcc; font-family: 'Courier New', monospace; overflow: hidden; }
         canvas { display: block; }
         
-        /* MENÜ & UI */
-        #game-overlay { position: absolute; inset: 0; background: rgba(0,5,10,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
-        .menu-container { width: 85%; max-width: 900px; border: 2px solid #00ffcc; padding: 25px; background: #001a1a; box-shadow: 0 0 30px #004444; }
-        .tab-btn { background: #002222; border: 1px solid #00ffcc; color: #00ffcc; padding: 12px 20px; cursor: pointer; }
-        .tab-btn:hover { background: #00ffcc; color: #000; }
+        /* UI LAYOUT */
+        #game-overlay { position: absolute; inset: 0; background: rgba(0,10,20,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        .menu-container { width: 80%; max-width: 600px; border: 2px solid #00ffcc; padding: 30px; background: #001a1a; text-align: center; }
         
-        #game-ui { position: absolute; top: 15px; left: 15px; pointer-events: none; display: none; width: 250px; }
-        .stat-box { background: rgba(0,15,15,0.9); padding: 15px; border: 1px solid #00ffcc; margin-bottom: 8px; font-size: 14px; }
-        .quest-box { border-left: 4px solid #ffd700; color: #ffd700; }
+        #game-ui { position: absolute; top: 15px; left: 15px; pointer-events: none; display: none; }
+        .stat-box { background: rgba(0,20,20,0.85); padding: 12px; border: 1px solid #00ffcc; margin-bottom: 8px; font-size: 14px; line-height: 1.5; }
+        .quest-box { border-left: 5px solid #ffd700; color: #ffd700; }
         
-        #minimap { position: absolute; bottom: 20px; right: 20px; width: 160px; height: 160px; border: 2px solid #00ffcc; display: none; background: #000; }
+        #minimap { position: absolute; bottom: 20px; right: 20px; width: 150px; height: 150px; border: 2px solid #00ffcc; display: none; background: #000; }
+        
+        button { background: #002222; border: 1px solid #00ffcc; color: #00ffcc; padding: 15px 30px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        button:hover { background: #00ffcc; color: #000; }
     </style>
 </head>
 <body>
 
     <div id="game-overlay">
-        <h1 id="menu-title">SPACE REBELLION</h1>
-        <div id="main-menu" class="menu-container">
-            <button class="tab-btn" onclick="startGame()">MISSION STARTEN</button>
-            <p style="margin-top:20px;">Fliege zur gelben Station (X:500, Y:500), um Quests anzunehmen!</p>
+        <div class="menu-container">
+            <h1>SPACE REBELLION</h1>
+            <p>Willkommen Pilot. Wähle dein Schiff und starte die Mission.</p>
+            <div style="margin: 20px 0;">
+                <button onclick="startGame('Piti')">START MIT PITI-JÄGER</button>
+            </div>
+            <p style="font-size: 12px; color: #666;">Tipp: Fliege zur gelben Station oben links für Quests!</p>
         </div>
     </div>
 
     <div id="game-ui">
         <div class="stat-box">
             HP: <span id="ui-hp">100</span> | SHD: <span id="ui-shd">100</span><br>
-            CREDITS: <span id="ui-credits">0</span><br>
-            ORE: <span id="ui-ore">0</span> / 10
+            CREDITS: <span id="ui-credits">0</span> | ORE: <span id="ui-ore">0</span>
         </div>
         <div class="stat-box quest-box" id="quest-ui">
-            QUEST: Keine aktive Mission
+            MISSION: Fliege zur Station (X:500)
         </div>
     </div>
     
@@ -50,155 +53,188 @@
         const mCanvas = document.getElementById("minimap");
         const mCtx = mCanvas.getContext("2d");
 
+        // SPIEL-VARIABLEN
         const worldSize = 5000;
         let gameState = "MENU";
+        let mouse = { x: 0, y: 0 };
+        let keys = {};
         
         let player = {
             worldX: 2500, worldY: 2500, angle: 0, speed: 0,
-            hp: 120, maxHp: 120, shield: 80, credits: 0,
-            ore: 0, color: "#00f0ff"
+            hp: 100, maxHp: 100, shield: 100, credits: 0, ore: 0,
+            color: "#00f0ff"
         };
 
-        let quest = { active: false, targetOre: 3, currentOre: 0, reward: 500 };
+        let quest = { active: false, current: 0, target: 3 };
         const station = { x: 500, y: 500, size: 80 };
 
         let aliens = [];
         let projectiles = [];
-        let resources = []; // Erze/Cargo
-        let mouse = { x: 0, y: 0 };
-        let keys = {};
+        let resources = [];
         let selectedTarget = null;
 
+        // INITIALISIERUNG
         function spawnAlien() {
-            aliens.push({ x: Math.random()*worldSize, y: Math.random()*worldSize, hp: 100, max: 100 });
+            aliens.push({
+                x: Math.random() * (worldSize - 200) + 100,
+                y: Math.random() * (worldSize - 200) + 100,
+                hp: 100, max: 100, id: Math.random()
+            });
         }
 
-        function startGame() {
+        function startGame(type) {
             document.getElementById("game-overlay").style.display = "none";
             document.getElementById("game-ui").style.display = "block";
             document.getElementById("minimap").style.display = "block";
+            
             gameState = "GAME";
-            for(let i=0; i<8; i++) spawnAlien();
-            gameLoop();
+            // Erstelle Start-Aliens
+            for(let i=0; i<6; i++) spawnAlien();
+            
+            requestAnimationFrame(draw);
         }
 
+        // INPUT LISTENERS
         window.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
         window.addEventListener("keydown", e => keys[e.code] = true);
         window.addEventListener("keyup", e => keys[e.code] = false);
         window.addEventListener("mousedown", e => {
-            const camX = canvas.width/2 - player.worldX, camY = canvas.height/2 - player.worldY;
-            const clickX = e.clientX - camX, clickY = e.clientY - camY;
-            selectedTarget = aliens.find(a => Math.sqrt((clickX-a.x)**2 + (clickY-a.y)**2) < 30);
+            if(gameState !== "GAME") return;
+            const camX = canvas.width/2 - player.worldX;
+            const camY = canvas.height/2 - player.worldY;
+            const clickX = e.clientX - camX;
+            const clickY = e.clientY - camY;
+
+            selectedTarget = null;
+            aliens.forEach(a => {
+                const d = Math.sqrt((clickX-a.x)**2 + (clickY-a.y)**2);
+                if(d < 40) selectedTarget = a;
+            });
         });
 
         function update() {
+            if(gameState !== "GAME") return;
+
             // Bewegung
-            const dx = mouse.x - canvas.width/2, dy = mouse.y - canvas.height/2;
+            const dx = mouse.x - canvas.width/2;
+            const dy = mouse.y - canvas.height/2;
             player.angle = Math.atan2(dy, dx);
-            if (Math.sqrt(dx*dx + dy*dy) > 60) player.speed = Math.min(player.speed + 0.1, 5);
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist > 60) player.speed = Math.min(player.speed + 0.1, 5);
             else player.speed *= 0.95;
+
             player.worldX += Math.cos(player.angle) * player.speed;
             player.worldY += Math.sin(player.angle) * player.speed;
 
-            // Combat & Laser
+            // Weltgrenzen
+            player.worldX = Math.max(0, Math.min(worldSize, player.worldX));
+            player.worldY = Math.max(0, Math.min(worldSize, player.worldY));
+
+            // Kampf
             if (keys["Space"] && selectedTarget && Math.random() < 0.1) {
                 projectiles.push({ x: player.worldX, y: player.worldY, target: selectedTarget });
             }
-            projectiles.forEach((p, i) => {
-                const tx = p.target.x - p.x, ty = p.target.y - p.y, dist = Math.sqrt(tx*tx + ty*ty);
-                if(dist < 15) {
-                    p.target.hp -= 10; projectiles.splice(i, 1);
+
+            for(let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                let tx = p.target.x - p.x, ty = p.target.y - p.y, d = Math.sqrt(tx*tx + ty*ty);
+                if(d < 15) {
+                    p.target.hp -= 10;
+                    projectiles.splice(i, 1);
                     if(p.target.hp <= 0) {
-                        resources.push({x: p.target.x, y: p.target.y}); // Loot droppen
+                        resources.push({x: p.target.x, y: p.target.y});
                         aliens = aliens.filter(a => a !== p.target);
                         selectedTarget = null;
-                        setTimeout(spawnAlien, 3000);
+                        setTimeout(spawnAlien, 4000);
                     }
-                } else { p.x += (tx/dist)*15; p.y += (ty/dist)*15; }
-            });
+                } else { p.x += (tx/d)*15; p.y += (ty/d)*15; }
+            }
 
-            // Loot sammeln
-            resources.forEach((r, i) => {
-                if(Math.sqrt((player.worldX-r.x)**2 + (player.worldY-r.y)**2) < 30) {
+            // Ressourcen sammeln
+            for(let i = resources.length - 1; i >= 0; i--) {
+                let r = resources[i];
+                if(Math.sqrt((player.worldX-r.x)**2 + (player.worldY-r.y)**2) < 40) {
                     resources.splice(i, 1);
                     player.ore++;
-                    if(quest.active) quest.currentOre++;
-                    updateUI();
+                    if(quest.active) quest.current++;
                 }
-            });
+            }
 
-            // Station & Quests
+            // Quest-Logik & Station
             const distToStation = Math.sqrt((player.worldX-station.x)**2 + (player.worldY-station.y)**2);
             if(distToStation < station.size) {
                 if(!quest.active) {
-                    quest.active = true; quest.currentOre = 0;
-                    alert("QUEST ANGENOMMEN: Sammle 3 Erze von Aliens!");
-                } else if(quest.currentOre >= quest.targetOre) {
-                    player.credits += quest.reward;
+                    quest.active = true;
+                    quest.current = 0;
+                } else if(quest.current >= quest.target) {
+                    player.credits += 1000;
+                    player.ore = 0;
                     quest.active = false;
-                    alert("QUEST ERFÜLLT! +500 Credits erhalten.");
+                    quest.current = 0;
                 }
-                updateUI();
             }
-        }
 
-        function updateUI() {
+            // UI Refresh
             document.getElementById("ui-hp").innerText = Math.floor(player.hp);
-            document.getElementById("ui-shd").innerText = Math.floor(player.shield);
             document.getElementById("ui-credits").innerText = player.credits;
             document.getElementById("ui-ore").innerText = player.ore;
-            
-            const qBox = document.getElementById("quest-ui");
-            if(quest.active) {
-                qBox.innerText = `QUEST: Erze sammeln (${quest.currentOre}/${quest.targetOre})`;
-            } else {
-                qBox.innerText = "QUEST: Fliege zur Station für Mission";
-            }
+            document.getElementById("quest-ui").innerText = quest.active ? 
+                `MISSION: Sammle Erz (${quest.current}/${quest.target})` : 
+                "MISSION: Fliege zur Station (Gelb)";
         }
 
         function draw() {
+            update();
             ctx.clearRect(0,0,canvas.width, canvas.height);
-            const camX = canvas.width/2 - player.worldX, camY = canvas.height/2 - player.worldY;
-            ctx.save(); ctx.translate(camX, camY);
+            const camX = canvas.width/2 - player.worldX;
+            const camY = canvas.height/2 - player.worldY;
 
-            // Gitter & Welt
-            ctx.strokeStyle = "#002222";
-            for(let i=0; i<=worldSize; i+=500) { ctx.strokeRect(i,0,1,worldSize); ctx.strokeRect(0,i,worldSize,1); }
+            ctx.save();
+            ctx.translate(camX, camY);
+
+            // Gitter
+            ctx.strokeStyle = "#111";
+            for(let i=0; i<=worldSize; i+=500) { ctx.strokeRect(i, 0, 1, worldSize); ctx.strokeRect(0, i, worldSize, 1); }
 
             // Station
             ctx.fillStyle = "#ffd700";
             ctx.beginPath(); ctx.arc(station.x, station.y, station.size, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#000"; ctx.fillText("QUEST STATION", station.x-40, station.y);
+            ctx.fillStyle = "#000"; ctx.fillText("STATION", station.x-25, station.y+5);
 
-            // Erze
-            resources.forEach(r => { ctx.fillStyle = "#aaa"; ctx.fillRect(r.x-5, r.y-5, 10, 10); });
-            
-            // Laser
-            projectiles.forEach(p => { ctx.strokeStyle = "red"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-5,p.y-5); ctx.stroke(); });
-
-            // Aliens
+            // Aliens & Ressourcen
+            resources.forEach(r => { ctx.fillStyle = "#aaa"; ctx.fillRect(r.x-8, r.y-8, 16, 16); });
             aliens.forEach(a => {
-                ctx.fillStyle = "#ff00ff"; ctx.beginPath(); ctx.arc(a.x, a.y, 15, 0, Math.PI*2); ctx.fill();
-                if(selectedTarget === a) { ctx.strokeStyle="red"; ctx.strokeRect(a.x-20, a.y-20, 40, 40); }
+                ctx.fillStyle = "#ff00ff"; ctx.beginPath(); ctx.arc(a.x, a.y, 20, 0, Math.PI*2); ctx.fill();
+                if(selectedTarget === a) { ctx.strokeStyle = "red"; ctx.lineWidth = 3; ctx.strokeRect(a.x-25, a.y-25, 50, 50); }
             });
+
+            // Projectiles
+            projectiles.forEach(p => { ctx.fillStyle = "red"; ctx.fillRect(p.x-2, p.y-2, 4, 4); });
+            
             ctx.restore();
 
-            // Spieler
-            ctx.save(); ctx.translate(canvas.width/2, canvas.height/2); ctx.rotate(player.angle);
-            ctx.fillStyle = player.color; ctx.beginPath(); ctx.moveTo(20,0); ctx.lineTo(-10,12); ctx.lineTo(-10,-12); ctx.fill();
+            // Spieler Design
+            ctx.save();
+            ctx.translate(canvas.width/2, canvas.height/2);
+            ctx.rotate(player.angle);
+            ctx.fillStyle = player.color;
+            ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(-15, 15); ctx.lineTo(-10, 0); ctx.lineTo(-15, -15); ctx.fill();
             ctx.restore();
 
             // Minimap
-            mCtx.fillStyle="black"; mCtx.fillRect(0,0,160,160);
-            mCtx.fillStyle="#ffd700"; mCtx.fillRect(station.x/worldSize*160, station.y/worldSize*160, 6, 6); // Station auf Map
-            mCtx.fillStyle="cyan"; mCtx.fillRect(player.worldX/worldSize*160, player.worldY/worldSize*160, 3, 3);
-            
-            update(); requestAnimationFrame(draw);
+            mCtx.fillStyle = "black"; mCtx.fillRect(0,0,150,150);
+            const s = 150/worldSize;
+            mCtx.fillStyle = "cyan"; mCtx.fillRect(player.worldX*s, player.worldY*s, 3, 3);
+            mCtx.fillStyle = "yellow"; mCtx.fillRect(station.x*s, station.y*s, 5, 5);
+            aliens.forEach(a => { mCtx.fillStyle = "red"; mCtx.fillRect(a.x*s, a.y*s, 2, 2); });
+
+            if(gameState === "GAME") requestAnimationFrame(draw);
         }
 
         window.addEventListener("resize", () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        mCanvas.width = 160; mCanvas.height = 160;
+        mCanvas.width = 150; mCanvas.height = 150;
     </script>
 </body>
 </html>
