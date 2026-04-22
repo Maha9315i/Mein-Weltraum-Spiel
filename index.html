@@ -2,22 +2,18 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Space Rebellion - Alpha V3</title>
+    <title>Space Rebellion - Combat Alpha</title>
     <style>
-        /* Das Design der Oberfläche */
         body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
         canvas { display: block; }
-        
         #ui {
             position: absolute; top: 10px; left: 10px; color: #00ffcc;
             background: rgba(0, 20, 20, 0.7); padding: 10px; border: 1px solid #00ffcc;
             pointer-events: none; z-index: 10;
         }
-
         #minimap {
             position: absolute; bottom: 20px; right: 20px;
-            width: 150px; height: 150px;
-            background: #000; border: 2px solid #00ffcc;
+            width: 150px; height: 150px; background: #000; border: 2px solid #00ffcc;
             z-index: 10;
         }
     </style>
@@ -25,14 +21,14 @@
 <body>
 
     <div id="ui">
-        Pos: <span id="pos-display">0 | 0</span>
+        POS: <span id="pos-display">0 | 0</span><br>
+        CREDITS: <span id="credit-display">0</span>
     </div>
     
     <canvas id="minimap"></canvas>
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // --- HIER BEGINNT DEIN CODE ---
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         const mCanvas = document.getElementById("minimap");
@@ -40,65 +36,127 @@
 
         const worldSize = 5000;
         let mouse = { x: 0, y: 0 };
+        let keys = {};
+        let selectedTarget = null;
+        let credits = 0;
 
+        // 1. SPIELER SETUP
         const player = {
             worldX: 2500, worldY: 2500,
             size: 25, angle: 0, speed: 0, maxSpeed: 5,
+            hp: 100, maxHp: 100, shield: 100, maxShield: 100,
             color: "#00f0ff"
         };
 
-        // Hintergrund Setup
-        const starLayers = [
-            { count: 300, speed: 0.05, size: 1, color: "#444" },
-            { count: 150, speed: 0.15, size: 1.2, color: "#888" },
-            { count: 60,  speed: 0.4,  size: 2, color: "#fff" }
+        // Listen für Objekte
+        let aliens = [
+            { id: 1, worldX: 2800, worldY: 2300, size: 40, hp: 100, maxHp: 100, color: "#ff00ff" },
+            { id: 2, worldX: 1500, worldY: 3500, size: 40, hp: 100, maxHp: 100, color: "#ff00ff" },
+            { id: 3, worldX: 4000, worldY: 1000, size: 40, hp: 100, maxHp: 100, color: "#ff00ff" }
         ];
+        let projectiles = [];
+        let resources = [];
 
-        const backgroundObjects = starLayers.map(layer => {
-            let stars = [];
-            for(let i = 0; i < layer.count; i++) {
-                stars.push({ x: Math.random() * worldSize, y: Math.random() * worldSize });
-            }
-            return stars;
-        });
-
-        const nebulae = Array.from({ length: 8 }, () => ({
-            x: Math.random() * worldSize,
-            y: Math.random() * worldSize,
-            size: 500 + Math.random() * 700,
-            color: Math.random() > 0.5 ? "rgba(50, 0, 100, 0.15)" : "rgba(0, 50, 100, 0.15)"
+        // Hintergrund Setup (Sterne & Nebel)
+        const starLayers = [{c:300, s:0.05, sz:1}, {c:150, s:0.15, sz:1.2}, {c:60, s:0.4, sz:2}];
+        const backgroundStars = starLayers.map(l => Array.from({length:l.c}, () => ({x:Math.random()*worldSize, y:Math.random()*worldSize})));
+        
+        const nebulae = Array.from({ length: 5 }, () => ({
+            x: Math.random() * worldSize, y: Math.random() * worldSize,
+            size: 600, color: "rgba(0, 100, 255, 0.1)"
         }));
 
-        const aliens = [
-            { worldX: 2800, worldY: 2300, size: 40, color: "#ff00ff", hp: 100 },
-            { worldX: 1500, worldY: 3500, size: 40, color: "#ff00ff", hp: 100 }
-        ];
+        // Event Listener
+        window.addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+        window.addEventListener("keydown", (e) => { keys[e.code] = true; });
+        window.addEventListener("keyup", (e) => { keys[e.code] = false; });
+        
+        // Targeting per Klick
+        window.addEventListener("mousedown", (e) => {
+            const camX = canvas.width / 2 - player.worldX;
+            const camY = canvas.height / 2 - player.worldY;
+            const clickX = e.clientX - camX;
+            const clickY = e.clientY - camY;
 
-        window.addEventListener("mousemove", (e) => {
-            mouse.x = e.clientX;
-            mouse.y = e.clientY;
+            selectedTarget = null;
+            aliens.forEach(a => {
+                const dist = Math.sqrt((clickX - a.worldX)**2 + (clickY - a.worldY)**2);
+                if (dist < a.size) selectedTarget = a;
+            });
         });
 
+        function spawnResource(x, y) {
+            resources.push({ worldX: x, worldY: y, size: 10 });
+        }
+
         function update() {
+            // Flug-Logik
             const dx = mouse.x - canvas.width / 2;
             const dy = mouse.y - canvas.height / 2;
             player.angle = Math.atan2(dy, dx);
-
             const dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist > 60) {
-                player.speed = Math.min(player.speed + 0.1, player.maxSpeed);
-            } else {
-                player.speed *= 0.95;
-            }
+            if (dist > 60) player.speed = Math.min(player.speed + 0.1, player.maxSpeed);
+            else player.speed *= 0.95;
 
             player.worldX += Math.cos(player.angle) * player.speed;
             player.worldY += Math.sin(player.angle) * player.speed;
 
+            // Weltgrenzen
             player.worldX = Math.max(0, Math.min(worldSize, player.worldX));
             player.worldY = Math.max(0, Math.min(worldSize, player.worldY));
 
-            document.getElementById("pos-display").innerText = 
-                Math.floor(player.worldX) + " | " + Math.floor(player.worldY);
+            // Schießen (Leertaste)
+            if (keys["Space"] && selectedTarget) {
+                // Nur alle paar Frames schießen
+                if (Math.random() < 0.15) {
+                    projectiles.push({
+                        x: player.worldX, y: player.worldY,
+                        target: selectedTarget, speed: 10
+                    });
+                }
+            }
+
+            // Laser-Verfolgung & Schaden
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                let tx = p.target.worldX - p.x;
+                let ty = p.target.worldY - p.y;
+                let tDist = Math.sqrt(tx*tx + ty*ty);
+                
+                if (tDist < 15) {
+                    p.target.hp -= 5;
+                    projectiles.splice(i, 1);
+                    if (p.target.hp <= 0) {
+                        spawnResource(p.target.worldX, p.target.worldY);
+                        aliens = aliens.filter(a => a !== p.target);
+                        selectedTarget = null;
+                    }
+                } else {
+                    p.x += (tx / tDist) * p.speed;
+                    p.y += (ty / tDist) * p.speed;
+                }
+            }
+
+            // Resource Sammeln
+            for (let i = resources.length - 1; i >= 0; i--) {
+                let r = resources[i];
+                let d = Math.sqrt((player.worldX - r.worldX)**2 + (player.worldY - r.worldY)**2);
+                if (d < 30) {
+                    resources.splice(i, 1);
+                    credits += 100;
+                    document.getElementById("credit-display").innerText = credits;
+                }
+            }
+
+            document.getElementById("pos-display").innerText = Math.floor(player.worldX) + " | " + Math.floor(player.worldY);
+        }
+
+        function drawBars(ctx, x, y, val, max, color) {
+            const width = 50;
+            ctx.fillStyle = "rgba(0,0,0,0.5)";
+            ctx.fillRect(x - width/2, y, width, 5);
+            ctx.fillStyle = color;
+            ctx.fillRect(x - width/2, y, (Math.max(0, val)/max) * width, 5);
         }
 
         function draw() {
@@ -106,119 +164,88 @@
             const camX = canvas.width / 2 - player.worldX;
             const camY = canvas.height / 2 - player.worldY;
 
-            // Nebel
-            ctx.save();
-            ctx.translate(camX * 0.05, camY * 0.05);
-            nebulae.forEach(n => {
-                let grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.size);
-                grad.addColorStop(0, n.color);
-                grad.addColorStop(1, "transparent");
-                ctx.fillStyle = grad;
-                ctx.fillRect(n.x - n.size, n.y - n.size, n.size * 2, n.size * 2);
-            });
-            ctx.restore();
-
-            // Sterne
-            backgroundObjects.forEach((stars, i) => {
-                const layer = starLayers[i];
-                ctx.save();
-                ctx.translate(camX * layer.speed, camY * layer.speed);
-                ctx.fillStyle = layer.color;
-                stars.forEach(s => ctx.fillRect(s.x, s.y, layer.size, layer.size));
-                ctx.restore();
-            });
-
-            // Welt-Objekte
+            // --- WELT EBENE ---
             ctx.save();
             ctx.translate(camX, camY);
-            ctx.strokeStyle = "rgba(0, 255, 200, 0.05)";
-            for(let i=0; i<=worldSize; i+=250) {
-                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, worldSize); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(worldSize, i); ctx.stroke();
-            }
-            ctx.strokeStyle = "#00ffcc";
-            ctx.lineWidth = 3;
-            ctx.strokeRect(0, 0, worldSize, worldSize);
 
-            aliens.forEach(a => {
-                ctx.fillStyle = a.color;
-                ctx.shadowBlur = 15; ctx.shadowColor = a.color;
-                ctx.beginPath(); ctx.arc(a.worldX, a.worldY, a.size/2, 0, Math.PI*2); ctx.fill();
+            // Sterne & Nebel
+            ctx.fillStyle = "#fff";
+            backgroundStars[1].forEach(s => ctx.fillRect(s.x, s.y, 1, 1));
+            
+            // Resources
+            resources.forEach(r => {
+                ctx.fillStyle = "#ffd700";
+                ctx.shadowBlur = 15; ctx.shadowColor = "gold";
+                ctx.fillRect(r.worldX - 5, r.worldY - 5, 10, 10);
                 ctx.shadowBlur = 0;
             });
+
+            // Laser-Strahlen
+            projectiles.forEach(p => {
+                ctx.strokeStyle = "#ff3300"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); 
+                ctx.lineTo(p.x - Math.cos(player.angle)*10, p.y - Math.sin(player.angle)*10);
+                ctx.stroke();
+            });
+
+            // Aliens
+            aliens.forEach(a => {
+                ctx.fillStyle = a.color;
+                ctx.beginPath(); ctx.arc(a.worldX, a.worldY, a.size/2, 0, Math.PI*2); ctx.fill();
+                drawBars(ctx, a.worldX, a.worldY - 35, a.hp, a.maxHp, "#ff0000");
+                
+                if (selectedTarget === a) {
+                    ctx.strokeStyle = "red"; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(a.worldX, a.worldY, a.size + 2, 0, Math.PI*2); ctx.stroke();
+                }
+            });
+
+            // Map-Begrenzung
+            ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, worldSize, worldSize);
+
             ctx.restore();
 
+            // --- SPIELER EBENE (Fest in Mitte) ---
             drawPlayer();
+            drawBars(ctx, canvas.width/2, canvas.height/2 + 35, player.hp, player.maxHp, "#00ff00");
+            drawBars(ctx, canvas.width/2, canvas.height/2 + 45, player.shield, player.maxShield, "#00ccff");
+
             drawMinimap();
-            requestAnimationFrame(() => { update(); draw(); });
+            update();
+            requestAnimationFrame(draw);
         }
 
-       function drawPlayer() {
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(player.angle);
+        function drawPlayer() {
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(player.angle);
 
-    // 1. Triebwerks-Flamme (animiert & glühend)
-    if (player.speed > 0.5) {
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = "#00f0ff";
-        ctx.fillStyle = "rgba(0, 240, 255, " + (Math.random() * 0.4 + 0.4) + ")";
-        ctx.beginPath();
-        ctx.moveTo(-15, 0);
-        ctx.lineTo(-30 - (player.speed * 4), 8);
-        ctx.lineTo(-20, 0);
-        ctx.lineTo(-30 - (player.speed * 4), -8);
-        ctx.closePath();
-        ctx.fill();
-        ctx.shadowBlur = 0;
-    }
+            // Triebwerk
+            if (player.speed > 1) {
+                ctx.fillStyle = "rgba(0, 255, 255, " + (Math.random() * 0.5 + 0.3) + ")";
+                ctx.beginPath();
+                ctx.moveTo(-15, 0); ctx.lineTo(-25 - (player.speed * 2), 5); ctx.lineTo(-25 - (player.speed * 2), -5);
+                ctx.fill();
+            }
 
-    // 2. Flügel (Außenhülle)
-    ctx.strokeStyle = player.color;
-    ctx.lineWidth = 2;
-    ctx.fillStyle = "#0a0a0a"; // Fast schwarzer Rumpf
-    
-    ctx.beginPath();
-    ctx.moveTo(28, 0);        // Spitze vorn
-    ctx.lineTo(-10, 22);      // Flügelspitze links
-    ctx.lineTo(-5, 8);        // Knick zum Heck
-    ctx.lineTo(-15, 0);       // Heck-Mitte
-    ctx.lineTo(-5, -8);       // Knick zum Heck
-    ctx.lineTo(-10, -22);     // Flügelspitze rechts
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+            // Detaillierter Rumpf
+            ctx.strokeStyle = player.color; ctx.lineWidth = 2; ctx.fillStyle = "#0a0a0a";
+            ctx.beginPath();
+            ctx.moveTo(25, 0); ctx.lineTo(-12, 18); ctx.lineTo(-8, 0); ctx.lineTo(-12, -18);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            
+            ctx.restore();
+        }
 
-    // 3. Cockpit (Bläuliches Glas)
-    ctx.fillStyle = "rgba(0, 200, 255, 0.5)";
-    ctx.beginPath();
-    ctx.ellipse(5, 0, 10, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // 4. Positionslichter (Rot/Grün wie bei echten Schiffen)
-    ctx.fillStyle = "#ff0000";
-    ctx.fillRect(-10, 18, 4, 4); // Links rot
-    ctx.fillStyle = "#00ff00";
-    ctx.fillRect(-10, -22, 4, 4); // Rechts grün
-
-    ctx.restore();
-}
         function drawMinimap() {
-            mCtx.fillStyle = "black";
-            mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
-            const scale = mCanvas.width / worldSize;
-            mCtx.fillStyle = "cyan";
-            mCtx.fillRect(player.worldX * scale, player.worldY * scale, 3, 3);
-            mCtx.fillStyle = "red";
-            aliens.forEach(a => mCtx.fillRect(a.worldX * scale, a.worldY * scale, 2, 2));
+            mCtx.fillStyle = "black"; mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
+            const s = mCanvas.width / worldSize;
+            mCtx.fillStyle = "cyan"; mCtx.fillRect(player.worldX * s, player.worldY * s, 3, 3);
+            mCtx.fillStyle = "red"; aliens.forEach(a => mCtx.fillRect(a.worldX * s, a.worldY * s, 2, 2));
         }
 
-        window.addEventListener("resize", () => {
-            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        });
+        window.addEventListener("resize", () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
         mCanvas.width = 150; mCanvas.height = 150;
         draw();
