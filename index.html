@@ -2,122 +2,143 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Space Rebellion - Engine V2</title>
+    <title>Space Rebellion - Alpha V3</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
         canvas { display: block; }
-        #ui-overlay {
+        #ui {
             position: absolute; top: 10px; left: 10px; color: #00ffcc;
-            pointer-events: none; /* Klicks gehen durch das UI aufs Spiel */
+            background: rgba(0, 20, 20, 0.7); padding: 10px; border: 1px solid #00ffcc;
+            pointer-events: none;
+        }
+        #minimap {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 150px; height: 150px;
+            background: rgba(0, 40, 40, 0.5); border: 2px solid #00ffcc;
         }
     </style>
 </head>
 <body>
 
-<div id="ui-overlay">
-    <div>Position: <span id="pos-display">0, 0</span></div>
+<div id="ui">
+    Pos: <span id="pos-display">0, 0</span>
 </div>
+<canvas id="minimap" id="minimapCanvas"></canvas>
 <canvas id="gameCanvas"></canvas>
 
 <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
+    const mCanvas = document.getElementById("minimap");
+    const mCtx = mCanvas.getContext("2d");
 
-    // Spieleinstellungen
-    const worldSize = 5000; // Die Größe des Universums
-    let keys = {};
+    const worldSize = 4000;
+    let mouse = { x: 0, y: 0 };
 
-    // Das Player-Objekt (Welt-Koordinaten)
     const player = {
-        worldX: 2500, // Start in der Mitte der Welt
-        worldY: 2500,
-        size: 30,
-        angle: 0,
-        speed: 0,
-        maxSpeed: 7,
-        accel: 0.2
+        worldX: 2000, worldY: 2000,
+        size: 25, angle: 0, speed: 0, maxSpeed: 4
     };
 
-    // Sterne generieren für den Hintergrund
-    const stars = [];
-    for(let i = 0; i < 400; i++) {
-        stars.push({
-            x: Math.random() * worldSize,
-            y: Math.random() * worldSize,
-            size: Math.random() * 2
-        });
-    }
+    // Ein einfaches Alien
+    const aliens = [
+        { worldX: 2200, worldY: 2200, size: 30, color: "#ff00ff", hp: 100 }
+    ];
 
-    window.addEventListener("keydown", e => keys[e.code] = true);
-    window.addEventListener("keyup", e => keys[e.code] = false);
+    // Maus-Position erfassen
+    window.addEventListener("mousemove", (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
 
     function update() {
-        // Steuerung (WASD oder Pfeile)
-        if (keys["ArrowLeft"] || keys["KeyA"]) player.angle -= 0.05;
-        if (keys["ArrowRight"] || keys["KeyD"]) player.angle += 0.05;
-        
-        if (keys["ArrowUp"] || keys["KeyW"]) {
-            player.speed = Math.min(player.speed + player.accel, player.maxSpeed);
+        // 1. Winkel zur Maus berechnen (Das Herz der Steuerung)
+        const dx = mouse.x - canvas.width / 2;
+        const dy = mouse.y - canvas.height / 2;
+        player.angle = Math.atan2(dy, dx);
+
+        // 2. Bewegung: Immer Richtung Winkel, wenn Maus weit genug weg ist
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist > 50) { // Kleiner Puffer, damit das Schiff nicht zittert
+            player.speed = player.maxSpeed;
         } else {
-            player.speed *= 0.98; // Gleiten im All
+            player.speed *= 0.9; // Bremsen
         }
 
-        // Bewegung in der Welt
         player.worldX += Math.cos(player.angle) * player.speed;
         player.worldY += Math.sin(player.angle) * player.speed;
 
-        // UI Update
+        // Grenzen einhalten
+        player.worldX = Math.max(0, Math.min(worldSize, player.worldX));
+        player.worldY = Math.max(0, Math.min(worldSize, player.worldY));
+
         document.getElementById("pos-display").innerText = 
-            Math.floor(player.worldX) + ", " + Math.floor(player.worldY);
+            Math.floor(player.worldX) + " | " + Math.floor(player.worldY);
+    }
+
+    function drawMinimap() {
+        mCtx.clearRect(0, 0, mCanvas.width, mCanvas.height);
+        const scale = mCanvas.width / worldSize;
+
+        // Dein Schiff auf der Minimap
+        mCtx.fillStyle = "cyan";
+        mCtx.fillRect(player.worldX * scale, player.worldY * scale, 4, 4);
+
+        // Aliens auf der Minimap
+        mCtx.fillStyle = "red";
+        aliens.forEach(a => mCtx.fillRect(a.worldX * scale, a.worldY * scale, 3, 3));
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // --- KAMERA LOGIK ---
-        // Wir verschieben den gesamten Kontext so, dass der Spieler in der Mitte ist
+        // Kamera-Offset berechnen
         const camX = canvas.width / 2 - player.worldX;
         const camY = canvas.height / 2 - player.worldY;
 
         ctx.save();
         ctx.translate(camX, camY);
 
-        // 1. Welt-Grenzen zeichnen
-        ctx.strokeStyle = "#333";
-        ctx.strokeRect(0, 0, worldSize, worldSize);
+        // Gitter zeichnen (für das Bewegungsgefühl)
+        ctx.strokeStyle = "#112222";
+        for(let i=0; i<=worldSize; i+=200) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, worldSize); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(worldSize, i); ctx.stroke();
+        }
 
-        // 2. Sterne zeichnen (liegen fest in der Welt)
-        ctx.fillStyle = "white";
-        stars.forEach(star => {
-            ctx.fillRect(star.x, star.y, star.size, star.size);
+        // Alien zeichnen
+        aliens.forEach(a => {
+            ctx.fillStyle = a.color;
+            ctx.beginPath();
+            ctx.arc(a.worldX, a.worldY, a.size/2, 0, Math.PI*2);
+            ctx.fill();
+            // HP Balken über dem Alien
+            ctx.fillStyle = "red";
+            ctx.fillRect(a.worldX - 15, a.worldY - 25, 30, 4);
         });
 
-        // 3. Spieler zeichnen (Relativ zur Kamera)
-        ctx.restore(); // Wir nehmen die Kamera kurz raus für das Schiff-Design
-        
+        ctx.restore();
+
+        // Spieler fest in der Mitte zeichnen
         ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2); // Schiff immer Bildschirmmitte
+        ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.rotate(player.angle);
-        
         ctx.fillStyle = "cyan";
         ctx.beginPath();
-        ctx.moveTo(20, 0); ctx.lineTo(-15, 15); ctx.lineTo(-15, -15);
+        ctx.moveTo(15, 0); ctx.lineTo(-10, 10); ctx.lineTo(-10, -10);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
 
-        requestAnimationFrame(() => {
-            update();
-            draw();
-        });
+        drawMinimap();
+        requestAnimationFrame(() => { update(); draw(); });
     }
 
     window.addEventListener("resize", () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     });
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    mCanvas.width = 150; mCanvas.height = 150;
 
     draw();
 </script>
