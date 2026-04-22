@@ -153,28 +153,59 @@
             requestAnimationFrame(() => { update(); draw(); });
         }
 
-        function drawPlayer() {
-            ctx.save();
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate(player.angle);
+       function drawPlayer() {
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(player.angle);
 
-            if (player.speed > 1) {
-                ctx.fillStyle = "rgba(0, 255, 255, " + (Math.random() * 0.5 + 0.3) + ")";
-                ctx.beginPath();
-                ctx.moveTo(-15, 0); ctx.lineTo(-25 - (player.speed * 3), 5); ctx.lineTo(-25 - (player.speed * 3), -5);
-                ctx.fill();
-            }
+    // 1. Triebwerks-Flamme (animiert & glühend)
+    if (player.speed > 0.5) {
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = "#00f0ff";
+        ctx.fillStyle = "rgba(0, 240, 255, " + (Math.random() * 0.4 + 0.4) + ")";
+        ctx.beginPath();
+        ctx.moveTo(-15, 0);
+        ctx.lineTo(-30 - (player.speed * 4), 8);
+        ctx.lineTo(-20, 0);
+        ctx.lineTo(-30 - (player.speed * 4), -8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
 
-            ctx.strokeStyle = player.color;
-            ctx.lineWidth = 2;
-            ctx.fillStyle = "#050505";
-            ctx.beginPath();
-            ctx.moveTo(25, 0); ctx.lineTo(-12, 18); ctx.lineTo(-8, 0); ctx.lineTo(-12, -18);
-            ctx.closePath();
-            ctx.fill(); ctx.stroke();
-            ctx.restore();
-        }
+    // 2. Flügel (Außenhülle)
+    ctx.strokeStyle = player.color;
+    ctx.lineWidth = 2;
+    ctx.fillStyle = "#0a0a0a"; // Fast schwarzer Rumpf
+    
+    ctx.beginPath();
+    ctx.moveTo(28, 0);        // Spitze vorn
+    ctx.lineTo(-10, 22);      // Flügelspitze links
+    ctx.lineTo(-5, 8);        // Knick zum Heck
+    ctx.lineTo(-15, 0);       // Heck-Mitte
+    ctx.lineTo(-5, -8);       // Knick zum Heck
+    ctx.lineTo(-10, -22);     // Flügelspitze rechts
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
 
+    // 3. Cockpit (Bläuliches Glas)
+    ctx.fillStyle = "rgba(0, 200, 255, 0.5)";
+    ctx.beginPath();
+    ctx.ellipse(5, 0, 10, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 4. Positionslichter (Rot/Grün wie bei echten Schiffen)
+    ctx.fillStyle = "#ff0000";
+    ctx.fillRect(-10, 18, 4, 4); // Links rot
+    ctx.fillStyle = "#00ff00";
+    ctx.fillRect(-10, -22, 4, 4); // Rechts grün
+
+    ctx.restore();
+}
         function drawMinimap() {
             mCtx.fillStyle = "black";
             mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
