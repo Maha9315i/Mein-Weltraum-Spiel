@@ -2,34 +2,30 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mein Weltraum-Spiel - Rebellion</title>
+    <title>Weltraum-Spiel</title>
     <style>
-        body { margin: 0; background: #000; color: #00ffcc; font-family: 'Courier New', monospace; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        canvas { display: none; } /* Versteckt das Spiel am Anfang */
-        
-        #start-menu { text-align: center; background: rgba(0, 20, 20, 0.9); padding: 40px; border: 3px solid #00ffcc; border-radius: 15px; }
-        h1 { margin-top: 0; color: #fff; text-shadow: 0 0 10px #00ffcc; }
-        .btn-container { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
-        button { padding: 15px 25px; font-size: 18px; font-family: inherit; cursor: pointer; border: 2px solid #00ffcc; background: transparent; color: #00ffcc; transition: 0.3s; }
+        body { margin: 0; background: #000; color: #00ffcc; font-family: sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        canvas { display: none; }
+        #start-menu { text-align: center; border: 2px solid #00ffcc; padding: 30px; background: rgba(0, 10, 10, 0.9); }
+        .btn-container { display: flex; gap: 15px; margin-top: 20px; }
+        button { padding: 10px 20px; cursor: pointer; border: 1px solid #00ffcc; background: transparent; color: #00ffcc; font-weight: bold; }
         button:hover { background: #00ffcc; color: #000; }
-
-        #ui { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.7); padding: 15px; border: 2px solid #00ffcc; border-radius: 8px; pointer-events: none; display: none; }
+        #ui { position: absolute; top: 20px; left: 20px; display: none; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; }
     </style>
 </head>
 <body>
 
     <div id="start-menu">
-        <h1>WÄHLE DEINE FRAKTION</h1>
+        <h1>WÄHLE DEINE SPEZIES</h1>
         <div class="btn-container">
-            <button onclick="startGame('Rebellen', 'cyan')">REBELLEN (Cyan)</button>
-            <button onclick="startGame('Imperium', 'red')">IMPERIUM (Rot)</button>
+            <button onclick="startGame('MENSCH')">MENSCH</button>
+            <button onclick="startGame('ALIEN')">ALIEN</button>
         </div>
     </div>
 
     <div id="ui">
-        <div style="font-weight: bold; color: yellow; margin-bottom: 5px;" id="faction-name">FRAKTION: -</div>
-        <div>LEVEL: <span id="lvl-display">1</span></div>
+        <div id="faction-name" style="color: yellow; font-weight: bold;">-</div>
+        <div>LVL: <span id="lvl-display">1</span></div>
         <div>XP: <span id="xp-display">0 / 100</span></div>
     </div>
 
@@ -39,40 +35,27 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         let gameRunning = false;
-
-        let player = {
-            x: 0, y: 0, size: 30, color: "white", speed: 5,
-            lvl: 1, xp: 0, nextLvl: 100, faction: ""
-        };
-
+        let player = { x: 0, y: 0, size: 30, color: "white", speed: 5, lvl: 1, xp: 0, nextLvl: 100 };
         let items = [];
         let levelUpMessage = "";
         let levelUpTimer = 0;
         let keys = {};
 
-        // Startfunktion
         function startGame(faction, color) {
             document.getElementById("start-menu").style.display = "none";
             document.getElementById("ui").style.display = "block";
             canvas.style.display = "block";
-            
-            player.faction = faction;
             player.color = color;
             player.x = canvas.width / 2;
             player.y = canvas.height / 2;
-            document.getElementById("faction-name").innerText = "FRAKTION: " + faction;
-            
+            document.getElementById("faction-name").innerText = faction;
             gameRunning = true;
             for(let i = 0; i < 5; i++) spawnItem();
             gameLoop();
         }
 
         function spawnItem() {
-            items.push({
-                x: Math.random() * (window.innerWidth - 20),
-                y: Math.random() * (window.innerHeight - 20),
-                size: 15, color: "yellow"
-            });
+            items.push({ x: Math.random() * (window.innerWidth - 20), y: Math.random() * (window.innerHeight - 20), size: 15, color: "yellow" });
         }
 
         function gainXP(amount) {
@@ -82,7 +65,7 @@
                 player.xp = 0;
                 player.nextLvl += 50;
                 player.speed += 0.5;
-                levelUpMessage = "LEVEL UP! JETZT LEVEL " + player.lvl;
+                levelUpMessage = "LEVEL UP! LEVEL " + player.lvl;
                 levelUpTimer = 100;
             }
             document.getElementById("xp-display").innerText = player.xp + " / " + player.nextLvl;
@@ -101,8 +84,7 @@
 
             for (let i = items.length - 1; i >= 0; i--) {
                 let it = items[i];
-                if (player.x < it.x + it.size && player.x + player.size > it.x &&
-                    player.y < it.y + it.size && player.y + player.size > it.y) {
+                if (player.x < it.x + it.size && player.x + player.size > it.x && player.y < it.y + it.size && player.y + player.size > it.y) {
                     items.splice(i, 1);
                     gainXP(25);
                     spawnItem();
@@ -115,11 +97,9 @@
             if (!gameRunning) return;
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
             items.forEach(it => { ctx.fillStyle = it.color; ctx.fillRect(it.x, it.y, it.size, it.size); });
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
-
             if (levelUpTimer > 0) {
                 ctx.fillStyle = "yellow";
                 ctx.font = "bold 40px Arial";
@@ -134,10 +114,7 @@
             if (gameRunning) requestAnimationFrame(gameLoop);
         }
 
-        window.addEventListener("resize", () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
+        window.addEventListener("resize", () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
     </script>
