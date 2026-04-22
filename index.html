@@ -2,31 +2,35 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Weltraum-Spiel</title>
+    <title>Space Rebellion - Alpha</title>
     <style>
-        body { margin: 0; background: #000; color: #00ffcc; font-family: sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        canvas { display: none; }
-        #start-menu { text-align: center; border: 2px solid #00ffcc; padding: 30px; background: rgba(0, 10, 10, 0.9); }
-        .btn-container { display: flex; gap: 15px; margin-top: 20px; }
-        button { padding: 10px 20px; cursor: pointer; border: 1px solid #00ffcc; background: transparent; color: #00ffcc; font-weight: bold; }
-        button:hover { background: #00ffcc; color: #000; }
-        #ui { position: absolute; top: 20px; left: 20px; display: none; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; }
+        body { margin: 0; background: #000; color: #00ffcc; font-family: 'Courier New', monospace; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        canvas { display: none; background: radial-gradient(circle, #111 0%, #000 100%); }
+        #start-menu { text-align: center; border: 3px solid #00ffcc; padding: 40px; background: rgba(0, 10, 10, 0.9); box-shadow: 0 0 20px #00ffcc; }
+        .btn-container { display: flex; gap: 20px; margin-top: 25px; }
+        button { padding: 15px 30px; cursor: pointer; border: 2px solid #00ffcc; background: transparent; color: #00ffcc; font-weight: bold; font-size: 1.2rem; }
+        button:hover { background: #00ffcc; color: #000; box-shadow: 0 0 15px #00ffcc; }
+        #ui { position: absolute; top: 20px; left: 20px; display: none; background: rgba(0, 20, 20, 0.8); padding: 15px; border: 1px solid #00ffcc; border-radius: 5px; min-width: 150px; }
+        .stat { margin-bottom: 5px; }
+        .credit-text { color: #ffd700; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div id="start-menu">
-        <h1>WÄHLE DEINE SPEZIES</h1>
+        <h1>SPACE REBELLION</h1>
+        <p>WÄHLE DEINE SPEZIES</p>
         <div class="btn-container">
-            <button onclick="startGame('MENSCH')">MENSCH</button>
-            <button onclick="startGame('ALIEN')">ALIEN</button>
+            <button onclick="startGame('MENSCH', 'cyan')">MENSCH</button>
+            <button onclick="startGame('ALIEN', 'lime')">ALIEN</button>
         </div>
     </div>
 
     <div id="ui">
-        <div id="faction-name" style="color: yellow; font-weight: bold;">-</div>
-        <div>LVL: <span id="lvl-display">1</span></div>
-        <div>XP: <span id="xp-display">0 / 100</span></div>
+        <div id="faction-name" style="font-size: 1.2rem; border-bottom: 1px solid #00ffcc; margin-bottom: 10px;">-</div>
+        <div class="stat">LVL: <span id="lvl-display">1</span></div>
+        <div class="stat">XP: <span id="xp-display">0 / 100</span></div>
+        <div class="stat credit-text">CREDITS: <span id="credit-display">0</span></div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -35,7 +39,12 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
         let gameRunning = false;
-        let player = { x: 0, y: 0, size: 30, color: "white", speed: 5, lvl: 1, xp: 0, nextLvl: 100 };
+        
+        let player = { 
+            x: 0, y: 0, size: 40, color: "white", speed: 5, 
+            lvl: 1, xp: 0, nextLvl: 100, credits: 0, faction: "" 
+        };
+
         let items = [];
         let levelUpMessage = "";
         let levelUpTimer = 0;
@@ -45,31 +54,43 @@
             document.getElementById("start-menu").style.display = "none";
             document.getElementById("ui").style.display = "block";
             canvas.style.display = "block";
+            player.faction = faction;
             player.color = color;
             player.x = canvas.width / 2;
             player.y = canvas.height / 2;
             document.getElementById("faction-name").innerText = faction;
             gameRunning = true;
-            for(let i = 0; i < 5; i++) spawnItem();
+            for(let i = 0; i < 8; i++) spawnItem();
             gameLoop();
         }
 
         function spawnItem() {
-            items.push({ x: Math.random() * (window.innerWidth - 20), y: Math.random() * (window.innerHeight - 20), size: 15, color: "yellow" });
+            items.push({ 
+                x: Math.random() * (canvas.width - 20), 
+                y: Math.random() * (canvas.height - 20), 
+                size: 10, 
+                color: "#ffd700", // Gold für Credits/XP
+                type: "scrap" 
+            });
         }
 
-        function gainXP(amount) {
-            player.xp += amount;
+        function gainXP(xpAmount, creditAmount) {
+            player.xp += xpAmount;
+            player.credits += creditAmount;
+            
             if (player.xp >= player.nextLvl) {
                 player.lvl++;
-                player.xp = 0;
-                player.nextLvl += 50;
-                player.speed += 0.5;
+                player.xp -= player.nextLvl;
+                player.nextLvl = Math.floor(player.nextLvl * 1.3);
+                player.speed += 0.3;
                 levelUpMessage = "LEVEL UP! LEVEL " + player.lvl;
                 levelUpTimer = 100;
             }
+            
+            // UI Update
             document.getElementById("xp-display").innerText = player.xp + " / " + player.nextLvl;
             document.getElementById("lvl-display").innerText = player.lvl;
+            document.getElementById("credit-display").innerText = player.credits;
         }
 
         window.addEventListener("keydown", e => keys[e.code] = true);
@@ -86,20 +107,61 @@
                 let it = items[i];
                 if (player.x < it.x + it.size && player.x + player.size > it.x && player.y < it.y + it.size && player.y + player.size > it.y) {
                     items.splice(i, 1);
-                    gainXP(25);
+                    gainXP(20, 10); // 20 XP und 10 Credits pro Item
                     spawnItem();
                 }
             }
             if (levelUpTimer > 0) levelUpTimer--;
         }
 
+        function drawShip(x, y, color, faction) {
+            ctx.fillStyle = color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = color;
+
+            if (faction === "MENSCH") {
+                // Dreieckiges Schiff (Mensch)
+                ctx.beginPath();
+                ctx.moveTo(x + 20, y);
+                ctx.lineTo(x, y + 40);
+                ctx.lineTo(x + 40, y + 40);
+                ctx.closePath();
+                ctx.fill();
+            } else {
+                // UFO Form (Alien)
+                ctx.beginPath();
+                ctx.ellipse(x + 20, y + 25, 20, 10, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(x + 20, y + 15, 10, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0; // Schatten für Rest aus
+        }
+
         function draw() {
             if (!gameRunning) return;
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            items.forEach(it => { ctx.fillStyle = it.color; ctx.fillRect(it.x, it.y, it.size, it.size); });
-            ctx.fillStyle = player.color;
-            ctx.fillRect(player.x, player.y, player.size, player.size);
+
+            // Sterne im Hintergrund (simpel)
+            ctx.fillStyle = "white";
+            for(let i=0; i<50; i++) {
+                ctx.fillRect((i*137)%canvas.width, (i*543)%canvas.height, 1, 1);
+            }
+
+            // Items zeichnen (leuchtende Kristalle)
+            items.forEach(it => { 
+                ctx.fillStyle = it.color;
+                ctx.beginPath();
+                ctx.arc(it.x, it.y, 5, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Raumschiff zeichnen
+            drawShip(player.x, player.y, player.color, player.faction);
+
             if (levelUpTimer > 0) {
                 ctx.fillStyle = "yellow";
                 ctx.font = "bold 40px Arial";
@@ -115,8 +177,7 @@
         }
 
         window.addEventListener("resize", () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     </script>
 </body>
 </html>
