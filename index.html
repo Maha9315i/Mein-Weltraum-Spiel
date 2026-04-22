@@ -2,45 +2,96 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Space Rebellion - Fixed Version</title>
+    <title>Space Rebellion - Alpha V4</title>
     <style>
         body { margin: 0; background: #000; color: #00ffcc; font-family: 'Courier New', monospace; overflow: hidden; }
         canvas { display: block; }
         
-        /* UI LAYOUT */
-        #game-overlay { position: absolute; inset: 0; background: rgba(0,10,20,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
-        .menu-container { width: 80%; max-width: 600px; border: 2px solid #00ffcc; padding: 30px; background: #001a1a; text-align: center; }
+        /* --- MENÜ SYSTEM --- */
+        #game-overlay { position: absolute; inset: 0; background: rgba(0,5,10,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        .menu-container { width: 90%; max-width: 900px; border: 2px solid #00ffcc; padding: 20px; background: #001a1a; box-shadow: 0 0 30px #004444; }
         
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #004444; padding-bottom: 10px; }
+        .tab-btn { background: #002222; border: 1px solid #00ffcc; color: #00ffcc; padding: 10px 20px; cursor: pointer; }
+        .tab-btn.active, .tab-btn:hover { background: #00ffcc; color: #000; }
+        
+        .content-section { display: none; min-height: 300px; }
+        .active-section { display: block; }
+
+        /* Fraktionswahl */
+        .faction-box { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
+        .faction-card { border: 2px solid #336666; padding: 20px; width: 200px; cursor: pointer; transition: 0.3s; }
+        .faction-card:hover { border-color: #00ffcc; background: #002222; }
+
+        /* Shop & Inventar */
+        .item-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #113333; align-items: center; }
+        .buy-btn { background: #ffd700; color: #000; border: none; padding: 5px 15px; cursor: pointer; font-weight: bold; }
+
+        /* In-Game UI */
         #game-ui { position: absolute; top: 15px; left: 15px; pointer-events: none; display: none; }
-        .stat-box { background: rgba(0,20,20,0.85); padding: 12px; border: 1px solid #00ffcc; margin-bottom: 8px; font-size: 14px; line-height: 1.5; }
-        .quest-box { border-left: 5px solid #ffd700; color: #ffd700; }
-        
-        #minimap { position: absolute; bottom: 20px; right: 20px; width: 150px; height: 150px; border: 2px solid #00ffcc; display: none; background: #000; }
-        
-        button { background: #002222; border: 1px solid #00ffcc; color: #00ffcc; padding: 15px 30px; cursor: pointer; font-size: 16px; font-weight: bold; }
-        button:hover { background: #00ffcc; color: #000; }
+        .stat-box { background: rgba(0,15,15,0.9); padding: 12px; border: 1px solid #00ffcc; margin-bottom: 5px; font-size: 13px; }
+        #minimap { position: absolute; bottom: 20px; right: 20px; width: 160px; height: 160px; border: 2px solid #00ffcc; display: none; background: #000; }
     </style>
 </head>
 <body>
 
     <div id="game-overlay">
-        <div class="menu-container">
-            <h1>SPACE REBELLION</h1>
-            <p>Willkommen Pilot. Wähle dein Schiff und starte die Mission.</p>
-            <div style="margin: 20px 0;">
-                <button onclick="startGame('Piti')">START MIT PITI-JÄGER</button>
+        <div id="faction-selection" class="menu-container">
+            <h1>WÄHLE DEINE FRAKTION</h1>
+            <div class="faction-box">
+                <div class="faction-card" onclick="setFaction('Menschheit', '#00f0ff')">
+                    <h3>MENSCHHEIT</h3>
+                    <p>Speed & Wendigkeit</p>
+                </div>
+                <div class="faction-card" onclick="setFaction('Syndikat', '#ff00ff')">
+                    <h3>SYNDIKAT</h3>
+                    <p>Schild & Power</p>
+                </div>
             </div>
-            <p style="font-size: 12px; color: #666;">Tipp: Fliege zur gelben Station oben links für Quests!</p>
+        </div>
+
+        <div id="main-menu" class="menu-container" style="display:none;">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="openTab('hangar')">HANGAR</button>
+                <button class="tab-btn" onclick="openTab('shop')">SHOP</button>
+                <button class="tab-btn" onclick="openTab('pilot')">PILOT</button>
+                <button class="tab-btn" style="margin-left:auto; border-color:#ffd700;" onclick="startGame()">START</button>
+            </div>
+
+            <div id="hangar" class="content-section active-section">
+                <h3>SCHIFFS-KONFIGURATION</h3>
+                <p>Aktuelles Schiff: <span id="ship-name">Starjet v1</span></p>
+                <div id="inventory-list">Keine Module installiert.</div>
+            </div>
+
+            <div id="shop" class="content-section">
+                <h3>SHOP (Credits: <span class="credit-val">0</span>)</h3>
+                <div class="item-row">
+                    <span>LF-3 Laser (+10 DMG)</span>
+                    <button class="buy-btn" onclick="buyItem('laser', 500)">500 C</button>
+                </div>
+                <div class="item-row">
+                    <span>BO-2 Schild (+50 SHD)</span>
+                    <button class="buy-btn" onclick="buyItem('shield', 800)">800 C</button>
+                </div>
+            </div>
+
+            <div id="pilot" class="content-section">
+                <h3>PILOTEN-PROFIL</h3>
+                <p>Fraktion: <span id="p-faction">-</span></p>
+                <p>XP: <span id="p-xp">0</span></p>
+                <p>Level: <span id="p-lvl">1</span></p>
+            </div>
         </div>
     </div>
 
     <div id="game-ui">
         <div class="stat-box">
             HP: <span id="ui-hp">100</span> | SHD: <span id="ui-shd">100</span><br>
-            CREDITS: <span id="ui-credits">0</span> | ORE: <span id="ui-ore">0</span>
+            CREDITS: <span class="credit-val">0</span> | ORE: <span id="ui-ore">0</span>
         </div>
-        <div class="stat-box quest-box" id="quest-ui">
-            MISSION: Fliege zur Station (X:500)
+        <div class="stat-box" style="border-left: 4px solid #ffd700;">
+            MISSION: <span id="ui-quest">Fliege zur Station (X:500)</span>
         </div>
     </div>
     
@@ -53,188 +104,69 @@
         const mCanvas = document.getElementById("minimap");
         const mCtx = mCanvas.getContext("2d");
 
-        // SPIEL-VARIABLEN
+        // SPIELER & WELT
         const worldSize = 5000;
         let gameState = "MENU";
-        let mouse = { x: 0, y: 0 };
-        let keys = {};
-        
         let player = {
             worldX: 2500, worldY: 2500, angle: 0, speed: 0,
-            hp: 100, maxHp: 100, shield: 100, credits: 0, ore: 0,
-            color: "#00f0ff"
+            hp: 100, maxHp: 100, shield: 100, maxShield: 100,
+            credits: 500, xp: 0, lvl: 1, ore: 0,
+            faction: "", color: "#00f0ff", laserPower: 10
         };
 
         let quest = { active: false, current: 0, target: 3 };
         const station = { x: 500, y: 500, size: 80 };
-
         let aliens = [];
         let projectiles = [];
         let resources = [];
         let selectedTarget = null;
+        let keys = {};
+        let mouse = { x: 0, y: 0 };
 
-        // INITIALISIERUNG
-        function spawnAlien() {
-            aliens.push({
-                x: Math.random() * (worldSize - 200) + 100,
-                y: Math.random() * (worldSize - 200) + 100,
-                hp: 100, max: 100, id: Math.random()
-            });
+        // --- MENÜ FUNKTIONEN ---
+        function setFaction(name, color) {
+            player.faction = name;
+            player.color = color;
+            document.getElementById("faction-selection").style.display = "none";
+            document.getElementById("main-menu").style.display = "block";
+            document.getElementById("p-faction").innerText = name;
+            updateUIStrings();
         }
 
-        function startGame(type) {
+        function openTab(tabId) {
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active-section'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active-section');
+            event.currentTarget.classList.add('active');
+        }
+
+        function buyItem(type, price) {
+            if(player.credits >= price) {
+                player.credits -= price;
+                if(type === 'laser') player.laserPower += 10;
+                if(type === 'shield') player.maxShield += 50;
+                updateUIStrings();
+                alert(type + " installiert!");
+            } else { alert("Zu wenig Credits!"); }
+        }
+
+        function updateUIStrings() {
+            document.querySelectorAll(".credit-val").forEach(el => el.innerText = player.credits);
+            document.getElementById("p-xp").innerText = player.xp;
+            document.getElementById("ui-ore").innerText = player.ore;
+        }
+
+        function startGame() {
             document.getElementById("game-overlay").style.display = "none";
             document.getElementById("game-ui").style.display = "block";
             document.getElementById("minimap").style.display = "block";
-            
             gameState = "GAME";
-            // Erstelle Start-Aliens
-            for(let i=0; i<6; i++) spawnAlien();
-            
-            requestAnimationFrame(draw);
+            for(let i=0; i<7; i++) spawnAlien();
+            gameLoop();
         }
 
-        // INPUT LISTENERS
-        window.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
-        window.addEventListener("keydown", e => keys[e.code] = true);
-        window.addEventListener("keyup", e => keys[e.code] = false);
-        window.addEventListener("mousedown", e => {
-            if(gameState !== "GAME") return;
-            const camX = canvas.width/2 - player.worldX;
-            const camY = canvas.height/2 - player.worldY;
-            const clickX = e.clientX - camX;
-            const clickY = e.clientY - camY;
-
-            selectedTarget = null;
-            aliens.forEach(a => {
-                const d = Math.sqrt((clickX-a.x)**2 + (clickY-a.y)**2);
-                if(d < 40) selectedTarget = a;
-            });
-        });
-
-        function update() {
-            if(gameState !== "GAME") return;
-
-            // Bewegung
-            const dx = mouse.x - canvas.width/2;
-            const dy = mouse.y - canvas.height/2;
-            player.angle = Math.atan2(dy, dx);
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            
-            if (dist > 60) player.speed = Math.min(player.speed + 0.1, 5);
-            else player.speed *= 0.95;
-
-            player.worldX += Math.cos(player.angle) * player.speed;
-            player.worldY += Math.sin(player.angle) * player.speed;
-
-            // Weltgrenzen
-            player.worldX = Math.max(0, Math.min(worldSize, player.worldX));
-            player.worldY = Math.max(0, Math.min(worldSize, player.worldY));
-
-            // Kampf
-            if (keys["Space"] && selectedTarget && Math.random() < 0.1) {
-                projectiles.push({ x: player.worldX, y: player.worldY, target: selectedTarget });
-            }
-
-            for(let i = projectiles.length - 1; i >= 0; i--) {
-                let p = projectiles[i];
-                let tx = p.target.x - p.x, ty = p.target.y - p.y, d = Math.sqrt(tx*tx + ty*ty);
-                if(d < 15) {
-                    p.target.hp -= 10;
-                    projectiles.splice(i, 1);
-                    if(p.target.hp <= 0) {
-                        resources.push({x: p.target.x, y: p.target.y});
-                        aliens = aliens.filter(a => a !== p.target);
-                        selectedTarget = null;
-                        setTimeout(spawnAlien, 4000);
-                    }
-                } else { p.x += (tx/d)*15; p.y += (ty/d)*15; }
-            }
-
-            // Ressourcen sammeln
-            for(let i = resources.length - 1; i >= 0; i--) {
-                let r = resources[i];
-                if(Math.sqrt((player.worldX-r.x)**2 + (player.worldY-r.y)**2) < 40) {
-                    resources.splice(i, 1);
-                    player.ore++;
-                    if(quest.active) quest.current++;
-                }
-            }
-
-            // Quest-Logik & Station
-            const distToStation = Math.sqrt((player.worldX-station.x)**2 + (player.worldY-station.y)**2);
-            if(distToStation < station.size) {
-                if(!quest.active) {
-                    quest.active = true;
-                    quest.current = 0;
-                } else if(quest.current >= quest.target) {
-                    player.credits += 1000;
-                    player.ore = 0;
-                    quest.active = false;
-                    quest.current = 0;
-                }
-            }
-
-            // UI Refresh
-            document.getElementById("ui-hp").innerText = Math.floor(player.hp);
-            document.getElementById("ui-credits").innerText = player.credits;
-            document.getElementById("ui-ore").innerText = player.ore;
-            document.getElementById("quest-ui").innerText = quest.active ? 
-                `MISSION: Sammle Erz (${quest.current}/${quest.target})` : 
-                "MISSION: Fliege zur Station (Gelb)";
+        function spawnAlien() {
+            aliens.push({ x: Math.random()*worldSize, y: Math.random()*worldSize, hp: 100, max: 100 });
         }
 
-        function draw() {
-            update();
-            ctx.clearRect(0,0,canvas.width, canvas.height);
-            const camX = canvas.width/2 - player.worldX;
-            const camY = canvas.height/2 - player.worldY;
-
-            ctx.save();
-            ctx.translate(camX, camY);
-
-            // Gitter
-            ctx.strokeStyle = "#111";
-            for(let i=0; i<=worldSize; i+=500) { ctx.strokeRect(i, 0, 1, worldSize); ctx.strokeRect(0, i, worldSize, 1); }
-
-            // Station
-            ctx.fillStyle = "#ffd700";
-            ctx.beginPath(); ctx.arc(station.x, station.y, station.size, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#000"; ctx.fillText("STATION", station.x-25, station.y+5);
-
-            // Aliens & Ressourcen
-            resources.forEach(r => { ctx.fillStyle = "#aaa"; ctx.fillRect(r.x-8, r.y-8, 16, 16); });
-            aliens.forEach(a => {
-                ctx.fillStyle = "#ff00ff"; ctx.beginPath(); ctx.arc(a.x, a.y, 20, 0, Math.PI*2); ctx.fill();
-                if(selectedTarget === a) { ctx.strokeStyle = "red"; ctx.lineWidth = 3; ctx.strokeRect(a.x-25, a.y-25, 50, 50); }
-            });
-
-            // Projectiles
-            projectiles.forEach(p => { ctx.fillStyle = "red"; ctx.fillRect(p.x-2, p.y-2, 4, 4); });
-            
-            ctx.restore();
-
-            // Spieler Design
-            ctx.save();
-            ctx.translate(canvas.width/2, canvas.height/2);
-            ctx.rotate(player.angle);
-            ctx.fillStyle = player.color;
-            ctx.beginPath(); ctx.moveTo(25, 0); ctx.lineTo(-15, 15); ctx.lineTo(-10, 0); ctx.lineTo(-15, -15); ctx.fill();
-            ctx.restore();
-
-            // Minimap
-            mCtx.fillStyle = "black"; mCtx.fillRect(0,0,150,150);
-            const s = 150/worldSize;
-            mCtx.fillStyle = "cyan"; mCtx.fillRect(player.worldX*s, player.worldY*s, 3, 3);
-            mCtx.fillStyle = "yellow"; mCtx.fillRect(station.x*s, station.y*s, 5, 5);
-            aliens.forEach(a => { mCtx.fillStyle = "red"; mCtx.fillRect(a.x*s, a.y*s, 2, 2); });
-
-            if(gameState === "GAME") requestAnimationFrame(draw);
-        }
-
-        window.addEventListener("resize", () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        mCanvas.width = 150; mCanvas.height = 150;
-    </script>
-</body>
-</html>
+        // --- GAME
