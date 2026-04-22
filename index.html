@@ -1,182 +1,179 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <title>Space Rebellion - Alpha V3</title>
-    <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-        canvas { display: block; }
-        #ui {
-            position: absolute; top: 10px; left: 10px; color: #00ffcc;
-            background: rgba(0, 20, 20, 0.7); padding: 10px; border: 1px solid #00ffcc;
-            pointer-events: none;
-        }
-        #minimap {
-            position: absolute; bottom: 20px; right: 20px;
-            width: 150px; height: 150px;
-            background: rgba(0, 40, 40, 0.5); border: 2px solid #00ffcc;
-        }
-    </style>
-</head>
-<body>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const mCanvas = document.getElementById("minimap");
+const mCtx = mCanvas.getContext("2d");
 
-<div id="ui">
-    Pos: <span id="pos-display">0, 0</span>
-</div>
-<canvas id="minimap" id="minimapCanvas"></canvas>
-<canvas id="gameCanvas"></canvas>
+const worldSize = 5000;
+let mouse = { x: 0, y: 0 };
 
-<script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const mCanvas = document.getElementById("minimap");
-    const mCtx = mCanvas.getContext("2d");
+// 1. SPIELER SETUP
+const player = {
+    worldX: 2500, worldY: 2500,
+    size: 25, angle: 0, speed: 0, maxSpeed: 5,
+    color: "#00f0ff"
+};
 
-    const worldSize = 4000;
-    let mouse = { x: 0, y: 0 };
+// 2. PARALLAX & HINTERGRUND SETUP
+const starLayers = [
+    { count: 300, speed: 0.05, size: 1, color: "#444" }, // Ganz fern
+    { count: 150, speed: 0.15, size: 1.2, color: "#888" }, // Mitte
+    { count: 60,  speed: 0.4,  size: 2, color: "#fff" }  // Nah
+];
 
-    const player = {
-        worldX: 2000, worldY: 2000,
-        size: 25, angle: 0, speed: 0, maxSpeed: 4
-    };
+const backgroundObjects = starLayers.map(layer => {
+    let stars = [];
+    for(let i = 0; i < layer.count; i++) {
+        stars.push({ x: Math.random() * worldSize, y: Math.random() * worldSize });
+    }
+    return stars;
+});
 
-    // Ein einfaches Alien
-    const aliens = [
-        { worldX: 2200, worldY: 2200, size: 30, color: "#ff00ff", hp: 100 }
-    ];
+const nebulae = Array.from({ length: 8 }, () => ({
+    x: Math.random() * worldSize,
+    y: Math.random() * worldSize,
+    size: 500 + Math.random() * 700,
+    color: Math.random() > 0.5 ? "rgba(50, 0, 100, 0.15)" : "rgba(0, 50, 100, 0.15)"
+}));
 
-    // Maus-Position erfassen
-    window.addEventListener("mousemove", (e) => {
-        mouse.x = e.clientX;
-        mouse.y = e.clientY;
-    });
+// 3. ENTITÄTEN (Gegner)
+const aliens = [
+    { worldX: 2800, worldY: 2300, size: 40, color: "#ff00ff", hp: 100 },
+    { worldX: 1500, worldY: 3500, size: 40, color: "#ff00ff", hp: 100 }
+];
 
-    function update() {
-        // 1. Winkel zur Maus berechnen (Das Herz der Steuerung)
-        const dx = mouse.x - canvas.width / 2;
-        const dy = mouse.y - canvas.height / 2;
-        player.angle = Math.atan2(dy, dx);
+// EVENT LISTENER
+window.addEventListener("mousemove", (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+});
 
-        // 2. Bewegung: Immer Richtung Winkel, wenn Maus weit genug weg ist
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist > 50) { // Kleiner Puffer, damit das Schiff nicht zittert
-            player.speed = player.maxSpeed;
-        } else {
-            player.speed *= 0.9; // Bremsen
-        }
+function update() {
+    // Winkel zur Maus
+    const dx = mouse.x - canvas.width / 2;
+    const dy = mouse.y - canvas.height / 2;
+    player.angle = Math.atan2(dy, dx);
 
-        player.worldX += Math.cos(player.angle) * player.speed;
-        player.worldY += Math.sin(player.angle) * player.speed;
-
-        // Grenzen einhalten
-        player.worldX = Math.max(0, Math.min(worldSize, player.worldX));
-        player.worldY = Math.max(0, Math.min(worldSize, player.worldY));
-
-        document.getElementById("pos-display").innerText = 
-            Math.floor(player.worldX) + " | " + Math.floor(player.worldY);
+    // Bewegung (Fliegen zur Maus)
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > 60) {
+        player.speed = Math.min(player.speed + 0.1, player.maxSpeed);
+    } else {
+        player.speed *= 0.95;
     }
 
-    function drawMinimap() {
-        mCtx.clearRect(0, 0, mCanvas.width, mCanvas.height);
-        const scale = mCanvas.width / worldSize;
+    player.worldX += Math.cos(player.angle) * player.speed;
+    player.worldY += Math.sin(player.angle) * player.speed;
 
-        // Dein Schiff auf der Minimap
-        mCtx.fillStyle = "cyan";
-        mCtx.fillRect(player.worldX * scale, player.worldY * scale, 4, 4);
+    // Weltgrenzen einhalten
+    player.worldX = Math.max(0, Math.min(worldSize, player.worldX));
+    player.worldY = Math.max(0, Math.min(worldSize, player.worldY));
 
-        // Aliens auf der Minimap
-        mCtx.fillStyle = "red";
-        aliens.forEach(a => mCtx.fillRect(a.worldX * scale, a.worldY * scale, 3, 3));
-    }
-
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Kamera-Offset berechnen
-        const camX = canvas.width / 2 - player.worldX;
-        const camY = canvas.height / 2 - player.worldY;
-
-        ctx.save();
-        ctx.translate(camX, camY);
-
-        // Gitter zeichnen (für das Bewegungsgefühl)
-        ctx.strokeStyle = "#112222";
-        for(let i=0; i<=worldSize; i+=200) {
-            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, worldSize); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(worldSize, i); ctx.stroke();
-        }
-
-        // Alien zeichnen
-        aliens.forEach(a => {
-            ctx.fillStyle = a.color;
-            ctx.beginPath();
-            ctx.arc(a.worldX, a.worldY, a.size/2, 0, Math.PI*2);
-            ctx.fill();
-            // HP Balken über dem Alien
-            ctx.fillStyle = "red";
-            ctx.fillRect(a.worldX - 15, a.worldY - 25, 30, 4);
-        });
-
-        ctx.restore();
-
-// --- VERBESSERTES SCHIFFS-DESIGN ---
-ctx.save();
-ctx.translate(canvas.width / 2, canvas.height / 2);
-ctx.rotate(player.angle);
-
-// 1. Triebwerksleuchten (animiert)
-if (player.speed > 0.5) {
-    ctx.fillStyle = "rgba(0, 255, 255, " + (Math.random() * 0.5 + 0.5) + ")";
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = "cyan";
-    ctx.beginPath();
-    ctx.moveTo(-15, 0);
-    ctx.lineTo(-30 - (player.speed * 2), 0); // Flamme wird länger bei Speed
-    ctx.stroke();
+    document.getElementById("pos-display").innerText = 
+        Math.floor(player.worldX) + " | " + Math.floor(player.worldY);
 }
 
-// 2. Der Hauptrumpf
-ctx.shadowBlur = 10;
-ctx.shadowColor = player.color;
-ctx.fillStyle = "#111"; // Dunkler Kern
-ctx.strokeStyle = player.color;
-ctx.lineWidth = 2;
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const camX = canvas.width / 2 - player.worldX;
+    const camY = canvas.height / 2 - player.worldY;
 
-ctx.beginPath();
-ctx.moveTo(25, 0);       // Spitze
-ctx.lineTo(-10, 15);     // Flügel links unten
-ctx.lineTo(-5, 5);       // Einbuchtung hinten
-ctx.lineTo(-5, -5);      // Einbuchtung hinten
-ctx.lineTo(-10, -15);    // Flügel rechts unten
-ctx.closePath();
-ctx.fill();
-ctx.stroke();
+    // --- EBENE 1: NEBEL (Ganz hinten) ---
+    ctx.save();
+    ctx.translate(camX * 0.05, camY * 0.05); // Nebel bewegt sich fast gar nicht
+    nebulae.forEach(n => {
+        let grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.size);
+        grad.addColorStop(0, n.color);
+        grad.addColorStop(1, "transparent");
+        ctx.fillStyle = grad;
+        ctx.fillRect(n.x - n.size, n.y - n.size, n.size * 2, n.size * 2);
+    });
+    ctx.restore();
 
-// 3. Cockpit-Glas
-ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-ctx.beginPath();
-ctx.ellipse(5, 0, 8, 4, 0, 0, Math.PI * 2);
-ctx.fill();
+    // --- EBENE 2: PARALLAX STERNE ---
+    backgroundObjects.forEach((stars, i) => {
+        const layer = starLayers[i];
+        ctx.save();
+        // Hier ist der Trick: Verschiedene Verschiebung pro Ebene
+        ctx.translate(camX * layer.speed, camY * layer.speed);
+        ctx.fillStyle = layer.color;
+        stars.forEach(s => ctx.fillRect(s.x, s.y, layer.size, layer.size));
+        ctx.restore();
+    });
 
-// 4. Details (Positionslichter)
-ctx.fillStyle = "red";
-ctx.fillRect(-12, 14, 3, 3);
-ctx.fillStyle = "lime";
-ctx.fillRect(-12, -17, 3, 3);
-
-ctx.restore();
-
-        drawMinimap();
-        requestAnimationFrame(() => { update(); draw(); });
+    // --- EBENE 3: WELT-OBJEKTE (Aliens, Gitter, Grenzen) ---
+    ctx.save();
+    ctx.translate(camX, camY);
+    
+    // Gitter
+    ctx.strokeStyle = "rgba(0, 255, 200, 0.05)";
+    ctx.lineWidth = 1;
+    for(let i=0; i<=worldSize; i+=250) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, worldSize); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(worldSize, i); ctx.stroke();
     }
 
-    window.addEventListener("resize", () => {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    });
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    mCanvas.width = 150; mCanvas.height = 150;
+    // Map-Grenze
+    ctx.strokeStyle = "#00ffcc";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, worldSize, worldSize);
 
-    draw();
-</script>
-</body>
-</html>
+    // Aliens
+    aliens.forEach(a => {
+        ctx.fillStyle = a.color;
+        ctx.shadowBlur = 15; ctx.shadowColor = a.color;
+        ctx.beginPath(); ctx.arc(a.worldX, a.worldY, a.size/2, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+    ctx.restore();
+
+    // --- EBENE 4: SPIELER (Fest in der Mitte) ---
+    drawPlayer();
+
+    drawMinimap();
+    requestAnimationFrame(() => { update(); draw(); });
+}
+
+function drawPlayer() {
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(player.angle);
+
+    // Triebwerk
+    if (player.speed > 1) {
+        ctx.fillStyle = "rgba(0, 255, 255, " + (Math.random() * 0.5 + 0.3) + ")";
+        ctx.beginPath();
+        ctx.moveTo(-15, 0); ctx.lineTo(-25 - (player.speed * 3), 5); ctx.lineTo(-25 - (player.speed * 3), -5);
+        ctx.fill();
+    }
+
+    // Rumpf
+    ctx.strokeStyle = player.color;
+    ctx.lineWidth = 2;
+    ctx.fillStyle = "#050505";
+    ctx.beginPath();
+    ctx.moveTo(25, 0); ctx.lineTo(-12, 18); ctx.lineTo(-8, 0); ctx.lineTo(-12, -18);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    
+    ctx.restore();
+}
+
+function drawMinimap() {
+    mCtx.fillStyle = "black";
+    mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
+    const scale = mCanvas.width / worldSize;
+    
+    mCtx.fillStyle = "cyan";
+    mCtx.fillRect(player.worldX * scale, player.worldY * scale, 3, 3);
+    
+    mCtx.fillStyle = "red";
+    aliens.forEach(a => mCtx.fillRect(a.worldX * scale, a.worldY * scale, 2, 2));
+}
+
+// Initialisierung
+window.addEventListener("resize", () => {
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+});
+canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+mCanvas.width = 150; mCanvas.height = 150;
+draw();
